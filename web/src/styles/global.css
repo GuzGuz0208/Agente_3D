@@ -190,34 +190,70 @@ svg.lucide {
   min-height: 3.25rem;
   padding: 0 var(--s-5);
   border: 0;
-  color: var(--on-dark);
   font-size: var(--t-base);
   font-weight: 650;
 }
 
 .btn-primary {
   background: var(--primary);
+  color: var(--on-dark);
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--primary-ink);
 }
 
-/* The one loud control of the product: start talking. */
-.btn-talk {
-  background: var(--accent);
-  box-shadow: 0 10px 22px -12px var(--accent);
+/* Call to action: «Hablar» (.btn-talk) and the tour's «Siguiente» (.btn-cta).
+   A piece of the slime: light rose lit from above, wine ink, a soft rose glow.
+   Hover lights it up and lifts it a pixel; pressing sinks it. The fill is a
+   background-color (animatable, and what contrast checks read); the shine on
+   top is a separate image layer. */
+.btn-talk,
+.btn-cta {
+  border: 0;
+  background-color: var(--cta);
+  background-image: var(--cta-shine);
+  color: var(--cta-ink);
+  box-shadow:
+    inset 0 -2px 0 var(--cta-rim),
+    0 10px 22px -12px var(--cta-glow);
+  transition:
+    background-color 0.2s,
+    box-shadow 0.2s,
+    color 0.2s,
+    transform 0.2s var(--ease);
 }
 
 /* Hover never overrides the running («Detener») state. */
-.btn-talk:not([data-running="true"]):hover:not(:disabled) {
-  background: var(--accent-ink);
+.btn-talk:not([data-running="true"]):hover:not(:disabled),
+.btn-cta:hover:not(:disabled) {
+  background-color: var(--cta-hover);
+  background-image: var(--cta-shine); /* .btn:hover's shorthand would drop it */
+  border-color: transparent;
+  box-shadow:
+    inset 0 -2px 0 var(--cta-rim),
+    0 14px 26px -12px var(--cta-glow);
+  transform: translateY(-1px);
 }
 
-.btn-talk[data-running="true"],
-.btn-talk[data-running="true"]:hover:not(:disabled) {
-  background: var(--primary-ink);
+.btn-talk:not([data-running="true"]):active:not(:disabled),
+.btn-cta:active:not(:disabled) {
+  background-color: var(--cta-press);
+  background-image: none;
+  box-shadow: inset 0 2px 4px var(--cta-rim);
+  transform: translateY(1px);
+}
+
+/* «Detener»: the same pill in dark wine with white ink, no glow. */
+.btn-talk[data-running="true"] {
+  background-color: var(--cta-stop);
+  background-image: none;
+  color: var(--on-dark);
   box-shadow: none;
+}
+
+.btn-talk[data-running="true"]:hover:not(:disabled) {
+  background-color: var(--cta-stop-hover);
 }
 
 /* ── Tags: told apart by shape as well as tone ───────────────────────────── */
@@ -311,4 +347,140 @@ svg.lucide {
 .ai-badge {
   font-size: var(--t-xs);
   color: var(--ink-3);
+}
+
+/* ── Emotion glow of the avatar stage (scripts/emotion-glow.ts) ──────────────
+   The script mirrors the latest affect reading on #avatar-stage as
+   data-emotion="<key>" and --emotion-glow: <hex> (no variable when neutral, so
+   the stage keeps its normal look). It is drawn as light, not as a painted frame:
+     · a thin line just inside the border (::after), lit from above: strongest
+       across the top and in the corners, fading down the sides;
+     · a bloom that hugs the edge and a wide, faint halo outside (box-shadow);
+     · a soft light that starts at the edge and dies out a short way in
+       (::before), so the middle of the stage keeps its own colours.
+   Both pseudo-elements sit under the canvas, the orb and every control
+   (z-index -1 inside the stage's own stacking context), so they never cover
+   them nor lower the contrast of their text. Same look in «Slime», «Avatar 3D»
+   and «Orbe»; in fullscreen and play mode, where the outside is off screen, the
+   line is a little wider and the inner light reaches further.
+   `body` in the selectors outranks the stage's own scoped rules
+   (#avatar-stage[data-astro-cid-*]) without !important. */
+
+/* Registered so the colour itself fades between emotions, and into nothing. */
+@property --emotion-glow {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
+body #avatar-stage[data-emotion] {
+  /* Reach of the light, width of the lit line, size of the bright corners, strength inside. */
+  --emotion-reach: 14px;
+  --emotion-line: 1.5px;
+  --emotion-corner: 110px;
+  --emotion-inner: 26%;
+  /* A stacking context: the pseudo-elements (z-index -1) stay above the stage background. */
+  isolation: isolate;
+  box-shadow:
+    0 0 4px 0 color-mix(in srgb, var(--emotion-glow) 45%, transparent),
+    0 0 calc(var(--emotion-reach) * 2.5) 0 color-mix(in srgb, var(--emotion-glow) 22%, transparent);
+  /* The first entry repeats AvatarStage.astro's own transition, which this one replaces. */
+  transition:
+    background 0.4s var(--ease),
+    border-color 1s var(--ease-glide),
+    --emotion-glow 1s var(--ease-glide);
+}
+
+/* A tint, not a stroke: the lit line inside does the drawing. */
+body #avatar-stage[data-emotion]:not([data-emotion="neutral"]) {
+  border-color: color-mix(in srgb, var(--emotion-glow) 40%, var(--border));
+}
+
+/* The lit line: a ring of --emotion-line cut out of a gradient with a mask. */
+body #avatar-stage[data-emotion]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: var(--emotion-line);
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 0 0, var(--emotion-glow), transparent var(--emotion-corner)),
+    radial-gradient(circle at 100% 0, var(--emotion-glow), transparent var(--emotion-corner)),
+    radial-gradient(circle at 0 100%, color-mix(in srgb, var(--emotion-glow) 65%, transparent), transparent var(--emotion-corner)),
+    radial-gradient(circle at 100% 100%, color-mix(in srgb, var(--emotion-glow) 65%, transparent), transparent var(--emotion-corner)),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--emotion-glow) 90%, transparent),
+      color-mix(in srgb, var(--emotion-glow) 40%, transparent) 50%,
+      color-mix(in srgb, var(--emotion-glow) 28%, transparent)
+    );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* The light inside: born at the edge, a little stronger from the top, gone before the middle. */
+body #avatar-stage[data-emotion]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 calc(var(--emotion-reach) * 2.2) 0 color-mix(in srgb, var(--emotion-glow) var(--emotion-inner), transparent),
+    inset 0 calc(var(--emotion-reach) * 0.8) calc(var(--emotion-reach) * 2.4) calc(var(--emotion-reach) * -0.6)
+      color-mix(in srgb, var(--emotion-glow) var(--emotion-inner), transparent);
+  pointer-events: none;
+}
+
+@media (min-width: 1024px) {
+  body #avatar-stage[data-emotion] {
+    --emotion-reach: 20px;
+    --emotion-corner: 160px;
+  }
+}
+
+/* Fullscreen and play mode: no border and nothing outside, so the line and the inner light do the work. */
+body #avatar-stage[data-emotion]:fullscreen,
+body #avatar-stage[data-emotion][data-play="on"] {
+  --emotion-reach: 30px;
+  --emotion-line: 3px;
+  --emotion-corner: 260px;
+  --emotion-inner: 30%;
+}
+
+/* A very slow breath of the light (opacity only, on the compositor). It runs
+   even when neutral, where it is invisible, so fading out never jumps. */
+@media (prefers-reduced-motion: no-preference) {
+  body #avatar-stage[data-emotion]::before {
+    animation: emotion-glow-breathe 6s var(--ease-glide) infinite alternate;
+  }
+
+  body #avatar-stage[data-emotion]::after {
+    animation: emotion-line-breathe 6s var(--ease-glide) infinite alternate;
+  }
+}
+
+@keyframes emotion-glow-breathe {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0.55;
+  }
+}
+
+@keyframes emotion-line-breathe {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0.75;
+  }
 }

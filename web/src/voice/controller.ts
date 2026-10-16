@@ -6,7 +6,7 @@
  * tool bridge with idempotency, engine switch with a neutral context envelope,
  * analyst calls, style decisions and the user controls.
  */
-import { analyze, DIRECTIVES, inferStyle } from "./analyst";
+import { analyze, DIRECTIVES, inferStyle, interactionSignals } from "./analyst";
 import { clonedVoiceEngines, defaultVoiceMode, fetchBrief, fetchHealth, fetchVoiceModes, runTool, verifyAnswer, type ToolContext } from "./api";
 import { getMicTap } from "./audio/mic-tap";
 import { createEngine, engineInfo, engineLabel, otherEngine, realEngines } from "./engine-factory";
@@ -307,6 +307,8 @@ async function runAnalysis(utterance_id: string, text: string, turn_id: string, 
   // The clip leaves the browser only with consent, and only for a spoken utterance.
   const audioWavB64 = consent && spoken && !before.simulated ? await utteranceClip(t, tEnd).catch(() => null) : null;
   const turn = before.turns.find((x) => x.turn_id === turn_id);
+  const finals = before.utterances.filter((u) => u.final && u.id !== utterance_id);
+  const lastAgent = finals.filter((u) => u.role === "agent" && u.kind !== "ack" && u.t_end <= t).pop();
   const entry = await analyze({
     utterance_id,
     text,
@@ -314,14 +316,16 @@ async function runAnalysis(utterance_id: string, text: string, turn_id: string, 
     state_version,
     t,
     voiceConsent: consent,
-    t_start: t,
-    t_end: tEnd,
-    signals: {
+    ...(spoken ? { t_start: t, t_end: tEnd } : {}),
+    signals: interactionSignals({
+      text,
       spoken,
-      interrupted_agent: before.turns.some((x) => x.interrupted_at !== null && x.n === (turn?.n ?? before.turns.length) - 1),
-      is_correction: /^\s*(no[, ]|corrección|dije )/i.test(text),
-      engine_attempts: attemptsThisTurn,
-    },
+      tStart: t,
+      tEnd,
+      agentEndedAt: lastAgent?.t_end ?? null,
+      interruptedAgent: before.turns.some((x) => x.interrupted_at !== null && x.n === (turn?.n ?? before.turns.length) - 1),
+      previousUserTexts: finals.filter((u) => u.role === "user").map((u) => u.correction?.text ?? u.text),
+    }),
     audioWavB64,
     affectHistory: before.affect.slice(-3).map((a) => a.estimate),
     tonePreference: tonePreference(),

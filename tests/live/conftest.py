@@ -8,6 +8,8 @@ on purpose with::
 They use the real ``SocrataClient``, ``data/lexicon.json`` and
 ``IpsToolService`` -- no HTTP server, no paid provider, no credential besides
 the optional datos.gov.co app token read through ``config`` (R-05).
+The one exception, ``test_live_affect.py``, calls the paid affect models and
+needs ``KOGNIA_LIVE_AFFECT=1`` as well.
 """
 
 from __future__ import annotations

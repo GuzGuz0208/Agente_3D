@@ -36,7 +36,7 @@ import ArrowRight from "@lucide/astro/icons/arrow-right";
       <button type="button" class="btn" data-tour-prev data-testid="tour-prev">
         <ArrowLeft aria-hidden="true" /> Atrás
       </button>
-      <button type="button" class="btn tour-next" data-tour-next data-testid="tour-next">
+      <button type="button" class="btn btn-cta tour-next" data-tour-next data-testid="tour-next">
         <span data-tour-next-label>Siguiente</span>
         <ArrowRight aria-hidden="true" />
       </button>
@@ -51,14 +51,20 @@ import ArrowRight from "@lucide/astro/icons/arrow-right";
 </script>
 
 <style>
+  /* Timing, read by help-tour.ts as well (one source of truth):
+     --tour-glide  the cut-out, the card and the page scroll travel together;
+     --tour-fade   the dimmed layer, the text and the phone sheet fade.
+     Older readers lose the thread when a highlight snaps: everything glides on
+     a sine ease-in-out (soft start, soft landing, no overshoot). */
   .tour {
-    --tour-t: 320ms;
+    --tour-glide: 640ms;
+    --tour-fade: 420ms;
     position: fixed;
     inset: 0;
     z-index: 1000;
     overflow: hidden;
     opacity: 0;
-    transition: opacity var(--tour-t) var(--ease);
+    transition: opacity var(--tour-fade) var(--ease-glide);
   }
 
   .tour[hidden] {
@@ -84,15 +90,18 @@ import ArrowRight from "@lucide/astro/icons/arrow-right";
     height: 0;
     border-radius: var(--r-md);
     pointer-events: none;
+    /* A pale rim (≥ 3:1 against the dimmed layer) with a warm rose halo, the
+       colour of the call to action, instead of a violet glow that clashed
+       with the pink blocks it framed. */
     box-shadow:
-      0 0 0 3px var(--accent-bright),
-      0 0 0 8px color-mix(in srgb, var(--violet-500) 30%, transparent),
-      0 0 34px 6px color-mix(in srgb, var(--violet-500) 45%, transparent),
+      0 0 0 3px var(--rose-100),
+      0 0 0 8px color-mix(in srgb, var(--rose-400) 50%, transparent),
+      0 0 30px 8px color-mix(in srgb, var(--rose-400) 40%, transparent),
       0 0 0 200vmax color-mix(in srgb, var(--plum-950) 66%, transparent);
     transition:
-      transform var(--tour-t) var(--ease),
-      width var(--tour-t) var(--ease),
-      height var(--tour-t) var(--ease);
+      transform var(--tour-glide) var(--ease-glide),
+      width var(--tour-glide) var(--ease-glide),
+      height var(--tour-glide) var(--ease-glide);
     will-change: transform, width, height;
   }
 
@@ -111,8 +120,16 @@ import ArrowRight from "@lucide/astro/icons/arrow-right";
     box-shadow:
       var(--shadow-float),
       0 24px 48px -20px color-mix(in srgb, var(--plum-950) 55%, transparent);
-    transition: transform var(--tour-t) var(--ease);
+    transition:
+      transform var(--tour-glide) var(--ease-glide),
+      opacity var(--tour-fade) var(--ease-glide);
     will-change: transform;
+  }
+
+  /* Phones: the sheet fades out before it changes edge, then fades back in. */
+  .tour-card.is-moving {
+    opacity: 0;
+    transition-duration: var(--tour-glide), calc(var(--tour-fade) / 2);
   }
 
   .tour-card:focus {
@@ -154,13 +171,13 @@ import ArrowRight from "@lucide/astro/icons/arrow-right";
     border-radius: var(--r-pill);
     background: var(--border-strong);
     transition:
-      width var(--tour-t) var(--ease),
-      background-color var(--tour-t);
+      width var(--tour-fade) var(--ease-glide),
+      background-color var(--tour-fade);
   }
 
   .tour-dots :global(span[data-on]) {
     width: 18px;
-    background: var(--accent);
+    background: var(--rose-500);
   }
 
   .tour-skip {
@@ -186,14 +203,15 @@ import ArrowRight from "@lucide/astro/icons/arrow-right";
     gap: var(--s-1);
   }
 
+  /* The new text settles while the cut-out is still arriving, not before. */
   .tour-body.is-in {
-    animation: tour-text var(--tour-t) var(--ease) both;
+    animation: tour-text var(--tour-fade) var(--ease-glide) calc(var(--tour-glide) / 3) both;
   }
 
   @keyframes tour-text {
     from {
       opacity: 0;
-      transform: translateY(6px);
+      transform: translateY(4px);
     }
   }
 
@@ -222,17 +240,11 @@ import ArrowRight from "@lucide/astro/icons/arrow-right";
     height: 1rem;
   }
 
+  /* Look and states come from the global call to action (.btn-cta). */
   .tour-next {
     flex: 1;
     max-width: 11rem;
-    border-color: var(--accent);
-    background: var(--accent);
-    color: var(--on-dark);
-  }
-
-  .tour-next:hover:not(:disabled) {
-    border-color: var(--accent-ink);
-    background: var(--accent-ink);
+    font-size: var(--t-base);
   }
 
   /* Phones: the card is a sheet on the bottom edge (or the top one, when the
@@ -264,6 +276,8 @@ import ArrowRight from "@lucide/astro/icons/arrow-right";
     }
   }
 
+  /* Reduced motion: every step lands at once (help-tour.ts also jumps the
+     scroll instead of gliding it). */
   @media (prefers-reduced-motion: reduce) {
     .tour,
     .tour-hole,

@@ -8,6 +8,12 @@
  *
  * Lifecycle: `initHelpTour()` runs once per document; the tour is torn down on
  * `astro:before-swap`, so navigating never leaves a second layer behind.
+ *
+ * Motion: when a step needs the page to scroll, the page glides with the same
+ * duration and curve as the cut-out (`--tour-glide`, `--ease-glide` in
+ * HelpTour.astro), so the block and its highlight arrive together instead of
+ * the page jumping under a sliding light. With reduced motion everything lands
+ * at once.
  */
 
 const STORAGE_KEY = "ips.tour.v1";
@@ -21,6 +27,8 @@ interface Step {
   anchors: string[];
   title: string;
   text: string;
+  /** Only shown when this holds at the moment the tour opens (e.g. the control exists but is hidden). */
+  when?: () => boolean;
 }
 
 interface Box {
@@ -63,8 +71,17 @@ const STEPS: Record<string, Step[]> = {
     },
     {
       anchors: [".stage-mode", tid("avatar-mode-3d")],
-      title: "Avatar 3D u Orbe",
-      text: "Elige cómo quieres verlo: con el avatar 3D o solo con el orbe, que es más liviano.",
+      title: "Slime, avatar 3D u orbe",
+      text: "Elige cómo quieres verlo: el slime, el avatar 3D animado o solo el orbe, que es el más liviano.",
+    },
+    {
+      anchors: [tid("play-button")],
+      when: () => {
+        const stage = q("#avatar-stage");
+        return stage?.dataset.avatar === "ready" && stage.dataset.avatarEnabled !== "false";
+      },
+      title: "Jugar con el slime",
+      text: "Pulsa el control de juego y el slime ocupa toda la pantalla. Inclina el celular para que ruede y choque con los bordes, o arrástralo con el dedo. Puedes seguir hablando con él; para volver, pulsa «Salir del juego».",
     },
     {
       anchors: [tid("mic-button"), tid("mic-button-composer")],
@@ -126,6 +143,8 @@ const STEPS: Record<string, Step[]> = {
   ],
 };
 
+type SheetEdge = "top" | "bottom";
+
 interface Session {
   steps: Step[];
   index: number;
@@ -133,6 +152,11 @@ interface Session {
   opener: HTMLElement | null;
   inerted: HTMLElement[];
   frame: number;
+  /** requestAnimationFrame id of the page scroll glide; 0 when still. */
+  glide: number;
+  /** Phones: pending edge swap of the bottom sheet (fades out, moves, fades in). */
+  sheetTimer: number;
+  sheetEdge: SheetEdge;
 }
 
 let session: Session | null = null;
@@ -140,6 +164,26 @@ let autoTimer = 0;
 let wired = false;
 
 const q = <T extends HTMLElement>(sel: string): T | null => document.querySelector<T>(sel);
+
+function reduceMotion(): boolean {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** A duration custom property of the tour layer, in ms; the CSS is the single source. */
+function cssMs(name: string, fallback: number): number {
+  const root = q("#help-tour");
+  if (!root) return fallback;
+  const raw = getComputedStyle(root).getPropertyValue(name).trim();
+  const n = parseFloat(raw);
+  if (!Number.isFinite(n)) return fallback;
+  if (raw.endsWith("ms")) return n;
+  return raw.endsWith("s") ? n * 1000 : n;
+}
+
+/** Sine ease-in-out: the script's twin of `--ease-glide`. */
+function easeGlide(t: number): number {
+  return -(Math.cos(Math.PI * t) - 1) / 2;
+}
 
 function seen(): boolean {
   try {
@@ -192,16 +236,40 @@ function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(n, Math.max(min, max)));
 }
 
-/** The cut-out: the anchor plus a little air, never outside the viewport. */
-function holeBox(el: HTMLElement): Box {
+/**
+ * The cut-out: the anchor plus a little air, never outside the viewport.
+ * `ahead` is page scroll still to come (px): the box is where the anchor will be.
+ */
+function holeBox(el: HTMLElement, ahead = 0): Box {
   const r = el.getBoundingClientRect();
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const left = clamp(r.left - PAD, 4, vw - 4);
-  const top = clamp(r.top - PAD, 4, vh - 4);
+  const top = clamp(r.top - ahead - PAD, 4, vh - 4);
   const right = clamp(r.right + PAD, left, vw - 4);
-  const bottom = clamp(r.bottom + PAD, top, vh - 4);
+  const bottom = clamp(r.bottom - ahead + PAD, top, vh - 4);
   return { left, top, width: right - left, height: bottom - top };
+}
+
+/** Phones: the sheet changes edge behind a short fade instead of jumping. */
+function moveSheet(card: HTMLElement, edge: SheetEdge): void {
+  const s = session;
+  if (!s) return;
+  s.sheetEdge = edge;
+  if (s.sheetTimer) return; // the pending swap takes the latest edge
+  if (card.dataset.pos === edge) return;
+  const first = card.dataset.pos !== "top" && card.dataset.pos !== "bottom";
+  const instant = first || reduceMotion() || q("#help-tour")?.classList.contains("no-anim");
+  if (instant) {
+    card.dataset.pos = edge;
+    return;
+  }
+  card.classList.add("is-moving");
+  s.sheetTimer = window.setTimeout(() => {
+    s.sheetTimer = 0;
+    card.dataset.pos = s.sheetEdge;
+    card.classList.remove("is-moving");
+  }, cssMs("--tour-fade", 420) / 2);
 }
 
 function placeCard(card: HTMLElement, box: Box): void {
@@ -209,9 +277,9 @@ function placeCard(card: HTMLElement, box: Box): void {
   const vh = window.innerHeight;
 
   if (vw <= PHONE_MAX) {
-    // Bottom sheet; it jumps to the top edge when the block sits in the lower half.
-    card.dataset.pos = box.top + box.height / 2 > vh / 2 ? "top" : "bottom";
+    // Bottom sheet; it moves to the top edge when the block sits in the lower half.
     card.style.transform = "";
+    moveSheet(card, box.top + box.height / 2 > vh / 2 ? "top" : "bottom");
     return;
   }
 
@@ -239,12 +307,13 @@ function placeCard(card: HTMLElement, box: Box): void {
   card.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
 }
 
-function position(): void {
+/** Aims the cut-out and the card; `ahead` is page scroll still to come (px). */
+function position(ahead = 0): void {
   const root = q("#help-tour");
   const hole = q("#help-tour-hole");
   const card = q("#help-tour-card");
   if (!session?.target || !root || !hole || !card) return;
-  const box = holeBox(session.target);
+  const box = holeBox(session.target, ahead);
   hole.style.transform = `translate3d(${Math.round(box.left)}px, ${Math.round(box.top)}px, 0)`;
   hole.style.width = `${Math.round(box.width)}px`;
   hole.style.height = `${Math.round(box.height)}px`;
@@ -252,7 +321,8 @@ function position(): void {
 }
 
 function schedule(): void {
-  if (!session || session.frame) return;
+  // While the page glides, the cut-out is already travelling to the final spot.
+  if (!session || session.frame || session.glide) return;
   session.frame = requestAnimationFrame(() => {
     if (!session) return;
     session.frame = 0;
@@ -260,15 +330,71 @@ function schedule(): void {
   });
 }
 
-function bringIntoView(el: HTMLElement): void {
+function stopGlide(): void {
+  if (!session?.glide) return;
+  cancelAnimationFrame(session.glide);
+  session.glide = 0;
+}
+
+/** The person scrolls by hand mid-glide: let go and follow them. */
+function onUserScroll(): void {
+  if (!session?.glide) return;
+  stopGlide();
+  schedule();
+}
+
+function fits(el: HTMLElement): boolean {
   const r = el.getBoundingClientRect();
-  const fits = r.top >= 8 && r.bottom <= window.innerHeight - 8;
-  if (fits) return;
-  const tall = r.height > window.innerHeight * 0.7;
+  return r.top >= 8 && r.bottom <= window.innerHeight - 8;
+}
+
+function jumpIntoView(el: HTMLElement): void {
+  const tall = el.getBoundingClientRect().height > window.innerHeight * 0.7;
   el.scrollIntoView({ block: tall ? "start" : "center", inline: "nearest", behavior: "instant" });
 }
 
-function show(index: number, dir: 1 | -1): void {
+/**
+ * Brings the step's block into view and returns the page scroll still to come
+ * (px), so the cut-out can head straight for the block's final spot. The page
+ * glides with the cut-out's duration and curve; a block inside its own
+ * scrolling box (not the page) still jumps, as the page cannot carry it.
+ */
+function bringIntoView(el: HTMLElement, instant: boolean): number {
+  stopGlide();
+  if (fits(el)) return 0;
+  const r = el.getBoundingClientRect();
+  const vh = window.innerHeight;
+  const tall = r.height > vh * 0.7;
+  const want = tall ? r.top - MARGIN : r.top + r.height / 2 - vh / 2;
+  const from = window.scrollY;
+  const max = document.documentElement.scrollHeight - vh;
+  const dy = Math.round(clamp(from + want, 0, max) - from);
+  const ms = instant || reduceMotion() ? 0 : cssMs("--tour-glide", 640);
+  if (dy === 0 || ms === 0 || !session) {
+    jumpIntoView(el);
+    return 0;
+  }
+
+  const s = session;
+  const start = performance.now();
+  const tick = (now: number): void => {
+    if (session !== s) return;
+    const t = Math.min(1, (now - start) / ms);
+    window.scrollTo({ top: from + dy * easeGlide(t), behavior: "instant" });
+    if (t < 1) {
+      s.glide = requestAnimationFrame(tick);
+      return;
+    }
+    s.glide = 0;
+    if (!fits(el)) jumpIntoView(el); // an inner scrolling box still hides it
+    position();
+  };
+  s.glide = requestAnimationFrame(tick);
+  return dy;
+}
+
+/** `instant`: the first step of a fresh tour lands without travelling. */
+function show(index: number, dir: 1 | -1, instant = false): void {
   if (!session) return;
   const root = q("#help-tour");
   const card = q("#help-tour-card");
@@ -292,7 +418,7 @@ function show(index: number, dir: 1 | -1): void {
   if (!step) return;
   session.index = i;
   session.target = target;
-  bringIntoView(target);
+  const ahead = bringIntoView(target, instant);
 
   const title = q("#help-tour-title");
   const text = q("#help-tour-text");
@@ -325,7 +451,7 @@ function show(index: number, dir: 1 | -1): void {
     void body.offsetWidth; // restart the text fade
     body.classList.add("is-in");
   }
-  position();
+  position(ahead);
   // A focused control that became disabled would drop focus out of the dialog.
   if (!card.contains(document.activeElement) || (document.activeElement as HTMLButtonElement).disabled) {
     (next ?? card).focus({ preventScroll: true });
@@ -389,7 +515,7 @@ function go(dir: 1 | -1): void {
 function open(opener: HTMLElement | null): void {
   if (session) return;
   const root = q("#help-tour");
-  const steps = (STEPS[pagePath()] ?? []).filter((s) => find(s, false));
+  const steps = (STEPS[pagePath()] ?? []).filter((s) => find(s, false) && (s.when?.() ?? true));
   if (!root || steps.length === 0) return;
 
   markSeen();
@@ -400,11 +526,11 @@ function open(opener: HTMLElement | null): void {
       inerted.push(el);
     }
   }
-  session = { steps, index: 0, target: null, opener, inerted, frame: 0 };
+  session = { steps, index: 0, target: null, opener, inerted, frame: 0, glide: 0, sheetTimer: 0, sheetEdge: "bottom" };
 
   root.hidden = false;
   root.classList.add("no-anim"); // the first frame lands on the block without travelling
-  show(0, 1);
+  show(0, 1, true);
   void root.offsetWidth;
   root.classList.remove("no-anim");
   root.dataset.open = "true";
@@ -412,27 +538,36 @@ function open(opener: HTMLElement | null): void {
   document.addEventListener("keydown", onKey, true);
   window.addEventListener("resize", schedule);
   window.addEventListener("scroll", schedule, true);
+  window.addEventListener("wheel", onUserScroll, { passive: true });
+  window.addEventListener("touchmove", onUserScroll, { passive: true });
   if (!session) root.hidden = true; // every step was skipped
 }
 
 function close(restoreFocus = true): void {
   const s = session;
   if (!s) return;
+  if (s.glide) cancelAnimationFrame(s.glide);
+  if (s.sheetTimer) window.clearTimeout(s.sheetTimer);
   session = null;
   if (s.frame) cancelAnimationFrame(s.frame);
   document.removeEventListener("keydown", onKey, true);
   window.removeEventListener("resize", schedule);
   window.removeEventListener("scroll", schedule, true);
+  window.removeEventListener("wheel", onUserScroll);
+  window.removeEventListener("touchmove", onUserScroll);
   for (const el of s.inerted) el.inert = false;
 
+  q("#help-tour-card")?.classList.remove("is-moving");
   const root = q("#help-tour");
   if (root) {
+    // Read before the fade starts; the layer hides once it has faded out.
+    const fade = reduceMotion() ? 0 : cssMs("--tour-fade", 420);
     delete root.dataset.open;
-    if (restoreFocus) {
+    if (restoreFocus && fade > 0) {
       const done = (): void => {
         if (!session) root.hidden = true;
       };
-      window.setTimeout(done, 320);
+      window.setTimeout(done, fade);
     } else {
       root.hidden = true;
     }

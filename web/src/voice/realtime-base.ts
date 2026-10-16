@@ -136,6 +136,14 @@ export abstract class RealtimeEngineBase implements VoiceEngine {
   protected readonly bargeConfirmMs: number = BARGE_CONFIRM_MS;
   /** The provider can answer with text only, so a client synthesizer can speak for it (docs/08 §15). */
   protected readonly supportsClonedVoice: boolean = false;
+  /**
+   * The style message cuts whatever the provider is generating (Gemini: a client
+   * content turn "will interrupt any current model generation"), so a new style
+   * waits for the moment between turns instead of going out mid-answer.
+   */
+  protected readonly styleWaitsForIdle: boolean = false;
+  /** A style that arrived while the agent was busy and still has to be sent. */
+  private styleDue = false;
 
   protected readonly deps: EngineDeps;
   private readonly listeners: Listeners = {};
@@ -283,6 +291,7 @@ export abstract class RealtimeEngineBase implements VoiceEngine {
         this.emit("error", { code: "PLAYBACK_FAILED", message: "El navegador bloqueó la reproducción de audio. Pulsa Iniciar de nuevo.", retryable: false });
       }
 
+      this.styleDue = false;
       if (this.style && this.style.directives.length > 0) this.sendStyle(this.style);
       if (opts.seed) {
         this.sendSeed(opts.seed);
@@ -392,7 +401,13 @@ export abstract class RealtimeEngineBase implements VoiceEngine {
 
   applyStyle(style: StyleDecision): void {
     this.style = style;
-    if (this.connected && this.transportReady) this.sendStyle(style);
+    if (!this.connected || !this.transportReady) return; // connect/renew send the style in force
+    if (this.styleWaitsForIdle) {
+      this.styleDue = true;
+      this.refreshStatus(); // sends it now if the agent is between turns, otherwise when it gets there
+      return;
+    }
+    this.sendStyle(style);
   }
 
   seed(context: ContextEnvelope): void {
@@ -1043,6 +1058,11 @@ export abstract class RealtimeEngineBase implements VoiceEngine {
     else if (this.expecting || this.pendingTools > 0 || generating) this.setStatus("thinking");
     else {
       this.setStatus("listening");
+      // Between turns: a style that waited for the agent to finish goes out now.
+      if (this.styleDue && this.style && this.transportReady) {
+        this.styleDue = false;
+        this.sendStyle(this.style);
+      }
       // Between turns: the only moment a proactive renewal is allowed (docs/08 §7).
       if (this.renewWanted !== null) {
         const reason = this.renewWanted;
@@ -1282,6 +1302,7 @@ export abstract class RealtimeEngineBase implements VoiceEngine {
       this.transportSerial++;
       await this.openTransport(grant);
       if (epoch !== this.epoch) return;
+      this.styleDue = false; // a fresh session gets the style in force right here
       if (this.style && this.style.directives.length > 0) this.sendStyle(this.style);
       this.sendSeed(this.ownEnvelope());
       this.renewing = false;

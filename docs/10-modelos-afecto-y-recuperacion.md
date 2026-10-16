@@ -150,7 +150,10 @@ prepare ─► ┬ text_affect ──┬─► fuse ─► style_policy ─► E
 ```
 
 - **Entradas por intervención del usuario:** texto; recorte de audio WAV (≤ 30 s) **solo si hay consentimiento**; señales de interacción (duración, palabras por segundo, pausa previa, si interrumpió al agente, pregunta repetida); historial de afecto de los últimos 3 turnos (lo envía el cliente: el servidor no guarda nada).
+- **Señales (contrato, 2026-10-16):** `signals = {duration_ms, words_per_second, pause_before_ms, interrupted_agent, repeated_question}`, las mismas claves en `InteractionSignals` (`src/models/analysis.py`) y en `interactionSignals()` (`web/src/voice/analyst.ts`); una prueba de vitest compara ambas. Las de tiempo solo existen para un enunciado **hablado**; una pregunta escrita las manda en `null` y también `t_start`/`t_end` en `null` (antes iban iguales, como si durara 0 ms). `prepare` las convierte en una frase corta («habló 2.0 s a 3.0 palabras/s; interrumpió al asistente») que recibe el modelo de texto como **pista débil**. Antes el cliente mandaba otras claves (`spoken`, `is_correction`, `engine_attempts`) que el backend descartaba, y el backend no usaba ninguna.
 - `text_affect` y `acoustic_affect` son llamadas del perfil `fast` con **esquema de salida** (la primera con respaldo `deep`). Plazo de 3 s; si fallan, el resultado es `uncertain`, **nunca** una etiqueta vieja con confianza.
+- **Respaldo con cobertura (2026-10-16):** si `fast` falla, `deep` arranca en el acto; si `fast` sigue sin responder a los `analyst_hedge_s` (1,6 s), `deep` arranca **a su lado** y gana la primera respuesta válida (la otra se cancela). Motivo medido: con `fast` degradado, la cadena secuencial le daba los 2,9 s enteros y `deep` nunca alcanzaba a correr: 22 de 39 frases salieron `incierta`.
+- Prompt de texto `affect-v2` (`integrations/llm/affect_models.py`): evalúa a **quien habla**, no el tema («¿cuántas IPS atienden cáncer?» es `neutral`); `incierta` solo para texto ininteligible; una corrección es información, no enojo; ironía = enojo/frustración; definiciones de cada `state_hint` («frustración» nunca por miedo o tristeza) y algunas expresiones de Colombia; el enunciado es dato, nunca instrucciones.
 - **`acoustic_affect` recibe solo el audio** (sin transcripción) más medidas de prosodia calculadas en el servidor (duración, volumen dBFS, variación, palabras por segundo; `services/analyst/prosody.py`). *Hallazgo de G3:* con transcripción, el modelo etiquetaba por las palabras; aun sin ella, con voz **sintética** (TTS «tenso» y «calmado» de la misma frase) devolvió las mismas etiquetas. **A-21 no está verificado**: hay que probarlo con una grabación humana real; mientras tanto la interfaz rotula la estimación por voz como tal y la fusión marca la discrepancia cuando la hay.
 - Corre **en paralelo a la respuesta** y no la retrasa (R-24): si llega después de empezar el turno siguiente, aplica desde el que sigue.
 
@@ -172,26 +175,31 @@ prepare ─► ┬ text_affect ──┬─► fuse ─► style_policy ─► E
 `confidence` es opcional y **no está calibrada**: no se inventan porcentajes. Cada etiqueta se
 rotula como «estimación del texto», «de la voz» o «combinada».
 
-**Fusión (determinista):** si texto y voz coinciden, esa etiqueta; si discrepan, `method = fused`,
-`discrepancy = true` y se muestran ambas; con audio < 1 s o mala calidad, solo texto; si falla una
-de las dos, la otra; si fallan ambas, `uncertain`. Una declaración explícita («estoy frustrado»)
-manda sobre la inferencia para `state_hint`.
+**Fusión (determinista, `nodes/fuse.py`; espejo en `fuseReadings` del cliente):** una lectura
+`uncertain`/`incierta` cuenta como **ausente** (no manda ni marca discrepancia); si texto y voz
+coinciden, esa etiqueta; si discrepan, `method = fused`, `discrepancy = true` y se muestran ambas:
+manda la voz (el tono dice lo que las palabras callan) **salvo** que solo las palabras traigan una
+emoción (una voz neutra no borra «estoy asustada»); si el que manda no trae `state_hint`, se toma
+el del otro canal. Con audio < 1 s, ilegible o en silencio, solo texto (el silencio se detecta en el
+servidor y no se llama al modelo). Si falla una de las dos, la otra; si fallan ambas, `uncertain`.
+Una declaración explícita («estoy frustrado») manda sobre la inferencia para `state_hint`.
+*Antes (medido el 2026-10-16):* 2 s de silencio con consentimiento → la voz decía `incierta`, mandaba
+sobre un texto claro y marcaba una discrepancia falsa.
 
-### Política de estilo (`config/style_policy.yaml`, planeado)
+### Política de estilo (`config/style_policy.yaml`)
+
+El YAML manda (este bloque resume el vigente) y **se valida al cargar**: una etiqueta o estilo mal
+escrito detiene el arranque en vez de dejar una regla que nunca coincide.
 
 ```yaml
-styles:
-  directo:   { directives: ["Responde en una o dos frases.", "Da primero la cifra.", "Sin rodeos."] }
-  calido:    { directives: ["Reconoce brevemente lo que siente la persona.", "Tono cercano y paciente."] }
-  didactico: { directives: ["Explica paso a paso con un ejemplo corto.", "Define IPS, sede y capacidad instalada."] }
-  neutro:    { directives: [] }
 rules:   # gana la primera que coincide; la preferencia explícita va siempre primero
   - { when: { explicit_preference: concise },     style: directo }     # «sé más directo»
   - { when: { explicit_preference: warm },        style: calido }
   - { when: { explicit_preference: explain },     style: didactico }
-  - { when: { state_hint: frustración },          style: directo,   reason: "Parece frustrado: respuestas más breves y al grano" }
-  - { when: { state_hint: confusión },            style: didactico, reason: "Parece confundido: explico paso a paso" }
-  - { when: { sentiment: negative, emotion: tristeza }, style: calido }
+  - { when: { emotion: [miedo, tristeza] },       style: calido }      # antes que frustración
+  - { when: { state_hint: frustración },          style: directo }
+  - { when: { emotion: enojo },                   style: directo }
+  - { when: { state_hint: confusión },            style: didactico }
   - { when: { state_hint: prisa },                style: directo }
   - { default: neutro }
 smoothing: { min_consecutive_signals: 2, explicit_preference_applies_immediately: true, decay_turns: 4 }
@@ -199,11 +207,39 @@ smoothing: { min_consecutive_signals: 2, explicit_preference_applies_immediately
 
 `StyleDecision = { style, directives[], reason, source: "preference" | "inferred", applies_from_turn }`.
 Un estilo inferido necesita **2 señales consecutivas** para cambiar (evita oscilar); una
-preferencia explícita se aplica de inmediato y **persiste** hasta que el usuario la cambie.
+preferencia explícita se aplica de inmediato y **persiste** hasta que el usuario la cambie. Una
+lectura `uncertain` (fallaron los modelos) **no cambia nada** ni cuenta como turno tranquilo para el
+decaimiento. Miedo y tristeza van antes que frustración porque los modelos rotulaban como
+«frustración» a personas asustadas o en duelo, y eso las llevaba a respuestas secas.
+Detección explícita: frases normalizadas, al **inicio de palabra** y **no precedidas de «no»**
+(«no estoy frustrado» no cuenta); «explícame» suelto ya no es preferencia («explícame cuántas IPS
+hay» es una pregunta), sí «explícame eso», «paso a paso», «explícame mejor».
 
 **Cómo se aplica por motor:** OpenAI → `session.update` añadiendo las directivas a las
-instrucciones; Gemini → turno de contexto «[Nota de estilo] …» (**verificar en G2**). Surte efecto
+instrucciones; **verificado en vivo (2026-10-16)**: misma pregunta, sin nota 120 palabras, `directo`
+43, `didactico` añade ejemplo y define «capacidad instalada». Gemini → turno de contexto «[NOTA DEL
+SISTEMA…] Nota de estilo vigente …» con `turnComplete: false` (G2 verificó que se obedece sin
+responderla). Como un `clientContent` de Gemini «interrumpe cualquier generación en curso» (referencia
+de la Live API), la nota **espera al hueco entre turnos** (`styleWaitsForIdle`) en vez de cortar la
+respuesta que se está diciendo. Con la **voz clonada** (OpenAI solo texto + Cartesia) el estilo cambia
+las palabras pero no la prosodia: Cartesia habla con su configuración por defecto. Surte efecto
 desde el turno siguiente. La interfaz muestra el estilo vigente con su motivo y «desde el turno N».
+
+**Evaluación (2026-10-16):** `tests/fixtures/affect_eval_cases.yaml`, 39 frases etiquetadas a mano
+(cada emoción y estado, consultas con «cáncer», «urgencias», «mortalidad», correcciones, preferencias,
+ironía, ruido, inyección) más 10 de control con expresiones que el prompt no menciona. Acierto en las
+tres etiquetas a la vez:
+
+| Perfil | Antes (prompt v1) | Después (affect-v2) | Control antes → después |
+|---|---|---|---|
+| `fast` Gemini | 32/39 | 36/39 | 10/10 → 10/10 |
+| `deep` OpenAI (sin clave de Gemini) | 28/39 | 37/39 | 9/10 → 10/10 |
+| Detectores explícitos (preferencia / estado) | 46/49 · 44/49 | 49/49 · 49/49 | — |
+
+Latencia por texto (3 llamadas a la vez) p50 ≈ 1,1 s, p95 1,9–2,2 s; la cobertura se activó en ≈ 8 %
+de las llamadas. Pendiente: la sorpresa («¡no puede ser, pensé que eran
+más!») a veces sale como alegría. Se repite con `KOGNIA_LIVE=1 KOGNIA_LIVE_AFFECT=1 pytest
+tests/live/test_live_affect.py -s` (≈ 50 llamadas de pago); los detectores se prueban sin red.
 
 **Panel:** por enunciado, emoción, sentimiento, `state_hint` y método; línea de valencia
 (+1 positivo, 0 neutral, −1 negativo, hueco si incierto); insignia de discrepancia texto/voz.
@@ -212,7 +248,7 @@ desde el turno siguiente. La interfaz muestra el estilo vigente con su motivo y 
 
 - Son **observaciones inciertas**; la preferencia explícita y el éxito de la tarea mandan.
 - Sin diagnóstico, sin rasgos estables, sin afirmaciones clínicas.
-- **Validación explícita de la voz** (decisión del equipo, 2026-10-09, tarde; reemplaza el «activo por defecto» de la mañana): un **botón** («Usar mi voz») con el que la persona autoriza el micrófono y el análisis de su voz; hasta pulsarlo, `voice_consent = false` (texto y análisis solo de texto). Tras validarla: indicador visible («análisis de voz activo») e interruptor para retirarla. El audio **no se guarda**: el recorte vive en memoria durante la petición y se descarta. *Riesgo registrado:* la voz analizada puede considerarse dato biométrico (Ley 1581, datos sensibles) y el recorte se envía a Google; el indicador visible es la mitigación mínima.
+- **Validación explícita de la voz** (decisión del equipo, 2026-10-09, tarde; reemplaza el «activo por defecto» de la mañana): un **botón** («Usar mi voz») con el que la persona autoriza el micrófono y el análisis de su voz; hasta pulsarlo, `voice_consent = false` (texto y análisis solo de texto). Tras validarla: indicador visible («análisis de voz activo») e interruptor para retirarla. El audio **no se guarda**: el recorte vive en memoria durante la petición y se descarta. Dentro del grafo viaja en un contenedor opaco (`AudioClip`): con `LANGSMITH_TRACING=true`, LangSmith serializaba los `bytes` del estado como base64, así que el WAV habría salido en cada traza; ahora la traza muestra solo «<audio clip: N bytes, not traced>». *Riesgo registrado:* la voz analizada puede considerarse dato biométrico (Ley 1581, datos sensibles) y el recorte se envía a Google; el indicador visible es la mitigación mínima.
 - **Aviso de IA mínimo** (se mantiene, sin diálogo): el agente dice que es una IA al empezar (prompt) y hay un distintivo visible de una línea; con la voz clonada, «voz sintética» (D-20). Lo exigen RETO-P1/P3 (F-01) y A-25.
 - **UE:** el AI Act exige avisar que se interactúa con una IA (art. 50) y la inferencia de emociones a partir de datos biométricos está **prohibida en entornos laborales y educativos** (art. 5.1.f) y exige transparencia en otros (fuentes secundarias; no es asesoría legal). Antes de cualquier uso comercial en la UE hay que evaluarlo con asesoría jurídica.
 

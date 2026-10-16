@@ -22,15 +22,15 @@ from services.analyst.nodes.fuse import fuse
 from services.analyst.nodes.prepare import make_prepare
 from services.analyst.nodes.style_policy import make_style_policy
 from services.analyst.nodes.text_affect import make_text_affect
-from services.analyst.state import AnalystState
+from services.analyst.state import AnalystState, AudioClip
 from services.analyst.style import StylePolicy
 
 
 def build_analyst_graph(text_chain: Sequence[AffectModelPort], voice_model: AffectModelPort | None,
-                        policy: StylePolicy):
+                        policy: StylePolicy, *, hedge_after_s: float = 1.6):
     g = StateGraph(AnalystState)
     g.add_node("prepare", make_prepare(policy))
-    g.add_node("text_affect", make_text_affect(text_chain))
+    g.add_node("text_affect", make_text_affect(text_chain, hedge_after_s=hedge_after_s))
     g.add_node("acoustic_affect", make_acoustic_affect(voice_model))
     g.add_node("fuse", fuse)
     g.add_node("style_policy", make_style_policy(policy))
@@ -45,11 +45,12 @@ def build_analyst_graph(text_chain: Sequence[AffectModelPort], voice_model: Affe
 
 class AnalystService:
     def __init__(self, text_chain: Sequence[AffectModelPort], voice_model: AffectModelPort | None,
-                 policy: StylePolicy, *, deadline_s: float = 3.0) -> None:
-        self._graph = build_analyst_graph(text_chain, voice_model, policy)
+                 policy: StylePolicy, *, deadline_s: float = 3.0, hedge_after_s: float = 1.6) -> None:
+        self._graph = build_analyst_graph(text_chain, voice_model, policy, hedge_after_s=hedge_after_s)
         self._deadline_s = deadline_s
 
     async def analyze(self, req: UtteranceAnalysisRequest, audio_wav: bytes | None) -> AnalysisResult:
         t0 = time.perf_counter()
-        out = await self._graph.ainvoke({"req": req, "audio": audio_wav, "deadline": Deadline(self._deadline_s)})
+        clip = AudioClip(audio_wav) if audio_wav else None  # opaque: never serialised into a trace (R-26)
+        out = await self._graph.ainvoke({"req": req, "audio": clip, "deadline": Deadline(self._deadline_s)})
         return AnalysisResult(affect=out["affect"], style=out["style"], ms=int((time.perf_counter() - t0) * 1000))

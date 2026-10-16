@@ -64,8 +64,12 @@ class AffectModelPort(Protocol):
     supports_audio: bool
 
     async def estimate(
-        self, text: str, audio_wav: bytes | None, *, timeout_s: float, prosody: str | None = None
-    ) -> AffectLabels: ...
+        self, text: str, audio_wav: bytes | None, *, timeout_s: float, prosody: str | None = None,
+        signals: str | None = None,
+    ) -> AffectLabels:
+        """``prosody``: local measures of the clip (voice branch). ``signals``: a short description
+        of the interaction cues (text branch); both are weak hints, never the label itself."""
+        ...
 
 
 @runtime_checkable

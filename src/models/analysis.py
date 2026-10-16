@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Sentiment = Literal["positive", "neutral", "negative", "uncertain"]
 Emotion = Literal["alegría", "tristeza", "enojo", "miedo", "sorpresa", "asco", "neutral", "incierta"]
@@ -30,9 +30,22 @@ class AffectLabels(BaseModel):
     state_hint: StateHint
     cues: list[str] = Field(default_factory=list, max_length=4)
 
+    @field_validator("cues", mode="before")
+    @classmethod
+    def _trim_cues(cls, v: object) -> object:
+        # A fifth or very long cue is not a reason to throw the whole reading away.
+        if isinstance(v, list):
+            return [str(c).strip()[:80] for c in v if str(c).strip()][:4]
+        return v
+
     @classmethod
     def uncertain(cls) -> AffectLabels:
         return cls(sentiment="uncertain", emotion="incierta", state_hint="desconocido", cues=[])
+
+    @property
+    def informative(self) -> bool:
+        """False when the model could not estimate anything (``uncertain``/``incierta``)."""
+        return self.sentiment != "uncertain" and self.emotion != "incierta"
 
 
 class AffectEstimate(BaseModel):
@@ -59,13 +72,23 @@ class StyleDecision(BaseModel):
 
 
 class InteractionSignals(BaseModel):
+    """Observable facts about the turn, measured by the client (docs/10 section 6).
+
+    The timing fields exist only for a spoken utterance: a typed question sends
+    them as null. They are weak cues for the text model, never a label by themselves.
+    """
+
     model_config = ConfigDict(extra="ignore")
 
-    duration_ms: int | None = None
-    words_per_second: float | None = None
-    pause_before_ms: int | None = None
+    duration_ms: int | None = Field(default=None, ge=0, le=120_000)
+    words_per_second: float | None = Field(default=None, ge=0, le=15)
+    pause_before_ms: int | None = Field(default=None, ge=0, le=600_000)
     interrupted_agent: bool = False
     repeated_question: bool = False
+
+
+#: Keys the client sends in ``signals`` (kept in step with web/src/voice/analyst.ts).
+SIGNAL_KEYS: tuple[str, ...] = tuple(InteractionSignals.model_fields)
 
 
 class AffectHistoryItem(BaseModel):

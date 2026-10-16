@@ -56,12 +56,19 @@ class FakeAffectModel:
         self.fail = fail
         self.delay_s = delay_s
         self.calls: list[tuple[str, bool]] = []
+        self.signals: list[str | None] = []
+        self.cancelled = 0
 
     async def estimate(self, text: str, audio_wav: bytes | None, *, timeout_s: float,
-                       prosody: str | None = None) -> AffectLabels:
+                       prosody: str | None = None, signals: str | None = None) -> AffectLabels:
         self.calls.append((text, audio_wav is not None))
-        if self.delay_s:
-            await asyncio.sleep(self.delay_s)
+        self.signals.append(signals)
+        try:
+            if self.delay_s:
+                await asyncio.sleep(self.delay_s)
+        except asyncio.CancelledError:
+            self.cancelled += 1
+            raise
         if self.fail:
             raise RuntimeError("simulated provider failure")
         return self.labels

@@ -40,13 +40,12 @@ describe("expressionFor", () => {
     ["confusión", "confused"],
     ["prisa", "focused"],
     ["satisfacción", "happy"],
-    ["interés", "happy"],
   ] as const)("state %s -> %s", (state_hint, face) => {
     expect(expressionFor({ affect: reading({ state_hint }) })).toBe(face);
   });
 
   it.each([
-    ["positive", "joyful"],
+    ["positive", "happy"],
     ["negative", "concerned"],
   ] as const)("sentiment %s -> %s", (sentiment, face) => {
     expect(expressionFor({ affect: reading({ sentiment }) })).toBe(face);
@@ -73,7 +72,15 @@ describe("expressionFor", () => {
 
     it("any affect signal beats the style", () => {
       expect(expressionFor({ affect: reading({ emotion: "tristeza" }), style: "calido" })).toBe("sad");
-      expect(expressionFor({ affect: reading({ sentiment: "positive" }), style: "directo" })).toBe("joyful");
+      expect(expressionFor({ affect: reading({ sentiment: "positive" }), style: "directo" })).toBe("happy");
+    });
+
+    it("interest draws no face and stops the chain, like the glow: only an emotion or the style speak", () => {
+      expect(expressionFor({ affect: reading({ state_hint: "interés" }) })).toBe("neutral");
+      expect(expressionFor({ affect: reading({ state_hint: "interés" }), style: "calido" })).toBe("calm");
+      expect(expressionFor({ affect: reading({ state_hint: "interés", sentiment: "positive" }) })).toBe("neutral");
+      expect(expressionFor({ affect: reading({ state_hint: "interés", sentiment: "negative" }) })).toBe("neutral");
+      expect(expressionFor({ affect: reading({ state_hint: "interés", emotion: "alegría" }) })).toBe("joyful");
     });
   });
 });

@@ -22,7 +22,9 @@ export type {
   AvatarExpression,
   AvatarHandle,
   AvatarState,
+  EatOrbOptions,
   MountAvatarOptions,
+  OrbBite,
 } from "./types";
 // Re-exported so the host reaches it through the same lazily loaded module (it must work without src/avatar/).
 export { expressionFor } from "./expression";

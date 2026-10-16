@@ -135,21 +135,24 @@ const nav = [
     flex: none;
     min-height: var(--tap);
     padding: 0 var(--s-3);
-    border: 1px solid var(--accent);
+    /* Pastel lilac: still findable at a glance, but it no longer competes with the rose call to action. */
+    border: 1px solid color-mix(in oklab, var(--violet-300) 70%, var(--rose-100));
     border-radius: var(--r-pill);
-    background: var(--accent-soft);
-    color: var(--accent-ink);
+    background: color-mix(in oklab, var(--violet-100) 65%, var(--rose-50));
+    color: var(--violet-900);
     font-size: var(--t-sm);
     font-weight: 600;
     white-space: nowrap;
     transition:
-      background-color 0.15s,
-      color 0.15s;
+      background-color 0.2s,
+      border-color 0.2s,
+      color 0.2s;
   }
 
   .help:hover {
-    background: var(--accent-soft);
-    color: var(--accent-ink);
+    border-color: var(--violet-300);
+    background: var(--violet-100);
+    color: var(--violet-900);
   }
 
   .help :global(svg) {

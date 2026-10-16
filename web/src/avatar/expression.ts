@@ -17,8 +17,8 @@
  *   | 5  | state `frustración`                    | `concerned` |                                       |
  *   | 6  | state `confusión`                      | `confused`  | one eye smaller, crooked mouth, tilt  |
  *   | 7  | state `prisa`                          | `focused`   | narrowed eyes, straight mouth         |
- *   | 8  | state `satisfacción`, `interés`        | `happy`     | wide smile                            |
- *   | 9  | sentiment `positive`                   | `joyful`    |                                       |
+ *   | 8  | state `satisfacción`                   | `happy`     | wide smile                            |
+ *   | 9  | sentiment `positive`                   | `happy`     | the open "D" is kept for `alegría`    |
  *   | 10 | sentiment `negative`                   | `concerned` |                                       |
  *   | 11 | style `calido`                         | `calm`      | closed happy eyes "^ ^", soft smile   |
  *   | 12 | style `directo`                        | `focused`   |                                       |
@@ -61,11 +61,17 @@ const BY_STATE: Partial<Record<AffectReading["state_hint"], AvatarExpression>> =
   confusión: "confused",
   prisa: "focused",
   satisfacción: "happy",
-  interés: "happy",
 };
 
+/**
+ * `interés` draws no face and stops the chain, like the glow (`glowFor`): the models tag almost
+ * every plain question with it, so it would otherwise smile, or frown with a negative sentiment
+ * behind it, on every turn (affect audit, 2026-10-16). An explicit emotion still wins.
+ */
+const QUIET_STATE: AffectReading["state_hint"] = "interés";
+
 const BY_SENTIMENT: Partial<Record<AffectReading["sentiment"], AvatarExpression>> = {
-  positive: "joyful",
+  positive: "happy",
   negative: "concerned",
 };
 
@@ -80,7 +86,8 @@ const BY_STYLE: Record<StyleId, AvatarExpression> = {
 export function expressionFor(input: ExpressionInput): AvatarExpression {
   const affect = input.affect;
   if (affect) {
-    const fromAffect = BY_EMOTION[affect.emotion] ?? BY_STATE[affect.state_hint] ?? BY_SENTIMENT[affect.sentiment];
+    const quiet = affect.state_hint === QUIET_STATE;
+    const fromAffect = BY_EMOTION[affect.emotion] ?? (quiet ? undefined : (BY_STATE[affect.state_hint] ?? BY_SENTIMENT[affect.sentiment]));
     if (fromAffect) return fromAffect;
   }
   return (input.style && BY_STYLE[input.style]) || "neutral";

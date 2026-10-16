@@ -35,6 +35,8 @@ export class GeminiLiveEngine extends RealtimeEngineBase {
   protected readonly inputRate = 16_000 as const;
   /** The server cuts by itself (low start-of-speech sensitivity on the backend): no local wait. */
   protected readonly bargeConfirmMs = 0;
+  /** A client content turn interrupts the current generation, so the style note waits for the gap between turns. */
+  protected override readonly styleWaitsForIdle = true;
 
   private ws: WebSocket | null = null;
   private ready = false;

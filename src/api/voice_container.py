@@ -90,7 +90,8 @@ def build_container(s: Settings) -> VoiceContainer:
     fast = GeminiAffectModel(api_key=s.gemini_api_key, model=s.analyst_fast_model) if s.gemini_api_key else None
     deep = OpenAIAffectModel(api_key=s.openai_api_key, model=s.analyst_deep_model) if s.openai_api_key else None
     chain = [m for m in (fast, deep) if m is not None]
-    analyst = AnalystService(chain, fast, StylePolicy.load(s.style_policy_path), deadline_s=s.analyst_deadline_s)
+    analyst = AnalystService(chain, fast, StylePolicy.load(s.style_policy_path), deadline_s=s.analyst_deadline_s,
+                             hedge_after_s=s.analyst_hedge_s)
 
     closers: list[Callable[[], Awaitable[None]]] = [dataset.aclose]
     closers += [m.aclose for m in chain]

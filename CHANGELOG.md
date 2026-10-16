@@ -5,6 +5,58 @@ Este proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+### Added — Jugar con el slime (rama `feat/slime-rosado`, 2026-10-16)
+- **Gestos sobre el slime** (`web/src/avatar/gestures.ts`, lógica pura con pruebas): tocar = risa o
+  «¡ay!»; sobar (vaivenes) = ojos «^ ^», mejillas rosadas y ronroneo; mantener 0,8 s = se derrite en
+  charco y se rearma al soltar; arrastrar = se estira hacia el dedo y deja **baba** que se desvanece en
+  ~6,5 s (`goo.ts`, canvas 2D sin eventos). Si el toque empieza fuera del cuerpo, gira la cámara como antes.
+  Ningún gesto toca la sesión de voz.
+- **Modo juego** (botón «Jugar», `web/src/scripts/play-mode.ts`): pantalla completa (o pseudo pantalla
+  completa en iPhone), permiso del sensor dentro del gesto en iOS, inclinación → gravedad según la
+  orientación de la pantalla, filtro paso bajo y zona muerta, sacudida que lanza al slime, vibración
+  proporcional al golpe en Android, y barra con «Salir del juego» y «Hablar» para seguir conversando.
+  Física en `physics.ts`: rueda, choca contra los bordes reales del encuadre con aplastamiento y rebote,
+  se atrapa y se lanza. Sin sensor o sin permiso, se juega arrastrando. Solo con el slime.
+- **Comerse el orbe:** al pasar de Orbe a Slime, el slime entra saltando desde la izquierda, abre la boca y
+  el orbe real de la pantalla se encoge hacia ella hasta tragárselo (~2,6 s). Sin entrada en la carga
+  normal, al elegir el Avatar 3D ni con movimiento reducido.
+- **Brillo por emoción** (`web/src/scripts/emotion-glow.ts`, función pura `glowFor`): el borde del recuadro
+  del avatar se ilumina como luz (línea fina más intensa arriba, halo difuso y luz interior desde el borde)
+  con el color de la emoción: enojo rojo, frustración salmón, prisa naranja, sorpresa ámbar, alegría y tono
+  positivo amarillo, tristeza y tono negativo azul, miedo violeta, confusión lila, asco oliva. Colores
+  separados por ΔE2000 ≥ 15 (enojo–frustración 26). «Interés» no enciende nada; con discrepancia texto/voz
+  manda el texto. Misma prioridad que la cara del slime; texto accesible para lectores de pantalla.
+- **Selector de personaje con tres opciones:** Slime · Avatar 3D (el personaje animado original, ahora
+  visible sin `?personaje=humano`) · Orbe; se recuerda en el navegador. Paso nuevo en el recorrido de ayuda
+  para «Jugar», que solo aparece cuando el slime está en pantalla.
+
+### Changed — Análisis de emociones auditado (2026-10-16)
+- **Respaldo a tiempo:** si Gemini no responde en 1,6 s (`analyst_hedge_s`), OpenAI arranca en paralelo y
+  gana la primera respuesta válida; antes, con Gemini degradado, 22 de 39 frases salían «incierta».
+- **Fusión texto/voz:** una lectura incierta cuenta como ausente; si solo las palabras traen emoción,
+  mandan las palabras; el audio en silencio no se envía al modelo.
+- **Gemini:** la nota de estilo espera al hueco entre turnos (un `clientContent` cortaba al agente).
+- **Privacidad:** el audio viaja en un contenedor opaco (`AudioClip`) que en las trazas solo muestra su tamaño.
+- **Señales de interacción** con las mismas claves en front y backend (`duration_ms`, `words_per_second`,
+  `pause_before_ms`, `interrupted_agent`, `repeated_question`), nulas en preguntas escritas.
+- **Política de estilo:** miedo y tristeza → cálido antes que frustración; enojo sin estado → directo; el
+  YAML se valida al cargar. Prompt `affect-v2`: evalúa a quien habla y no el tema (cáncer o urgencias no
+  son tristeza), una corrección no es enojo, ironía = enojo/frustración; detección de preferencias con
+  negación y expresiones de Colombia.
+- **Cara del slime:** «interés» ya no la cambia y un tono positivo da sonrisa normal (la «D» queda para la
+  alegría).
+- **Evaluación** con 39 frases etiquetadas (acierto en las tres etiquetas): Gemini 32 → 36, OpenAI 28 → 37.
+  Pendiente: la rama de voz solo se probó con voces sintéticas.
+
+### Changed — Interfaz (2026-10-16)
+- **Recorrido de ayuda más lento y suave:** 640 ms para el recorte y la tarjeta (antes 320 ms), curva sin
+  rebote, la página se desliza en lugar de saltar; instantáneo con movimiento reducido.
+- **Botón de acción rosado** (`--cta*`): «Hablar ahora», «Hablar», «Siguiente» y el micrófono del celular
+  dejan el violeta saturado; «Detener» en vino. Burbujas del usuario en lila claro. «¿Cómo funciona?» en
+  lila pastel. Todo con contraste AA medido.
+- **Boca del slime:** sigue la curva del cuerpo (antes la «D» se veía como trapecio recortado) y la lengua
+  es más oscura (`--rose-600`) y pequeña.
+
 ### Added — Avatar slime rosado (ramas `feat/avatar-slime` y `feat/slime-rosado`, 2026-10-15)
 - **Nuevo personaje por defecto: un slime rosado**, pensado para adultos mayores: una cara grande y
   legible, silueta calmada y lenguaje corporal que dice el estado aunque no haya sonido. Gomita de

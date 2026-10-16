@@ -9,18 +9,29 @@
  * in `#avatar-stage[data-avatar-enabled]` and announced on `window` with the
  * CustomEvent `avatar:toggle` ({ detail: { enabled } }). While it is off the
  * avatar module is never loaded (no .vrm download, no WebGL); if it was
- * mounted, its host is disposed.
+ * mounted, its host is disposed. From the orb to the slime there is an entrance:
+ * `data-entrance="eat"` keeps the orb on screen while the slime hops in and eats
+ * it (scripts/avatar-host.ts); with reduced motion it is a plain switch.
  *
  * On phones and upright tablets the stage is compact and the talk button moves
  * to the composer at the bottom edge (see Chat.astro), within reach of the thumb.
+ *
+ * «Jugar» (play mode, logic in scripts/play-mode.ts): the stage fills the screen,
+ * the phone's tilt rolls the slime, its hits against the edges vibrate the phone
+ * (Android), and the conversation goes on: talk/stop, mute and the subtitle stay
+ * on the stage. It is offered only while the 3D character is on screen and never
+ * starts on its own. «Salir del juego», Esc or leaving fullscreen restore everything.
  */
 import CircleDot from "@lucide/astro/icons/circle-dot";
+import Droplet from "@lucide/astro/icons/droplet";
+import Gamepad2 from "@lucide/astro/icons/gamepad-2";
 import Maximize from "@lucide/astro/icons/maximize";
 import Mic from "@lucide/astro/icons/mic";
 import Rotate3d from "@lucide/astro/icons/rotate-3d";
 import Square from "@lucide/astro/icons/square";
 import UserRound from "@lucide/astro/icons/user-round";
 import VolumeX from "@lucide/astro/icons/volume-x";
+import X from "@lucide/astro/icons/x";
 import ZoomIn from "@lucide/astro/icons/zoom-in";
 import ZoomOut from "@lucide/astro/icons/zoom-out";
 import Orb from "./Orb.astro";
@@ -39,6 +50,9 @@ import Orb from "./Orb.astro";
     </p>
 
     <div class="stage-tools" role="group" aria-label="Vista">
+      <button type="button" class="tool tool-play" id="btn-play" data-testid="play-button" title="Jugar: pantalla completa; inclina el celular o arrastra al personaje">
+        <Gamepad2 aria-hidden="true" /><span class="tool-label">Jugar</span>
+      </button>
       <button type="button" class="tool tool-mute" data-testid="mute-button-stage" data-mute disabled aria-label="Silenciar" title="Silenciar (Esc)"><VolumeX aria-hidden="true" /></button>
       <button type="button" class="tool" id="btn-fullscreen" aria-label="Pantalla completa" title="Pantalla completa"><Maximize aria-hidden="true" /></button>
       <button type="button" class="tool tool-cam" id="btn-camera" aria-label="Reiniciar cámara" title="Reiniciar cámara"><Rotate3d aria-hidden="true" /></button>
@@ -47,7 +61,10 @@ import Orb from "./Orb.astro";
     </div>
 
     <div class="stage-mode" role="group" aria-label="Qué se muestra">
-      <button type="button" data-avatar-mode="on" data-testid="avatar-mode-3d" aria-pressed="true" title="Mostrar el avatar 3D">
+      <button type="button" data-avatar-mode="slime" data-testid="avatar-mode-3d" aria-pressed="true" title="Mostrar el slime">
+        <Droplet aria-hidden="true" /> <span>Slime</span>
+      </button>
+      <button type="button" data-avatar-mode="humano" data-testid="avatar-mode-human" aria-pressed="false" title="Mostrar el avatar 3D animado">
         <UserRound aria-hidden="true" /> <span>Avatar 3D</span>
       </button>
       <button type="button" data-avatar-mode="off" data-testid="avatar-mode-orb" aria-pressed="false" title="Mostrar solo el orbe">
@@ -64,6 +81,19 @@ import Orb from "./Orb.astro";
     <p class="subtitle" id="subtitle" data-testid="subtitle" aria-hidden="true" hidden></p>
     <!-- Screen readers get finished utterances only, never every partial. -->
     <div class="sr-only" id="subtitle-live" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Play mode only: a short hint once the sensor answers, and the controls that stay on screen. -->
+    <p class="play-note" id="play-note" data-testid="play-note" role="status" aria-live="polite"></p>
+    <div class="play-bar" role="group" aria-label="Juego">
+      <button type="button" class="btn play-exit" id="btn-play-exit" data-testid="play-exit" aria-keyshortcuts="Escape">
+        <X aria-hidden="true" /> Salir del juego
+      </button>
+      <button class="btn btn-talk" type="button" id="btn-play-talk" data-testid="mic-button-play" data-running="false">
+        <span class="when-stopped"><Mic aria-hidden="true" /> Hablar</span>
+        <span class="when-running"><Square aria-hidden="true" /> Detener</span>
+        <span class="when-waiting"><span class="wait-spin" aria-hidden="true"></span> Conectando…</span>
+      </button>
+    </div>
   </div>
 
   <div class="stage-controls">
@@ -82,6 +112,7 @@ import Orb from "./Orb.astro";
 <script>
   import { hostAvatar, type AvatarHost } from "../scripts/avatar-host";
   import { bind, byId, esc, panel } from "../scripts/dom";
+  import { startPlay, type PlaySession, type SensorStatus } from "../scripts/play-mode";
   import * as controller from "../voice/controller";
   import { getState, type ConsoleState } from "../voice/store";
   import type { EngineStatus } from "../voice/types";
@@ -122,8 +153,29 @@ import Orb from "./Orb.astro";
     }
   };
 
+  /** Same key, values and default as `pickCharacter` in src/avatar/index.ts. */
+  const CHARACTER_KEY = "ips.character";
+  type Character = "slime" | "humano";
+  const storedCharacter = (): Character => {
+    try {
+      const fromUrl = new URLSearchParams(location.search).get("personaje");
+      if (fromUrl === "slime" || fromUrl === "humano") return fromUrl;
+      return localStorage.getItem(CHARACTER_KEY) === "humano" ? "humano" : "slime";
+    } catch {
+      return "slime";
+    }
+  };
+
   const ZOOM_MIN = 0.7;
   const ZOOM_MAX = 1.6;
+
+  /** Play mode hint, shown once the sensor answers; long enough to read calmly. */
+  const PLAY_NOTE: Record<SensorStatus, string> = {
+    on: "Inclina el celular y el slime rodará. También puedes arrastrarlo con el dedo.",
+    off: "Tu dispositivo no comparte la inclinación; puedes jugar arrastrándolo.",
+  };
+  const PLAY_NOTE_GENTLE = "Pediste reducir el movimiento: se moverá con suavidad y sin vibrar.";
+  const PLAY_NOTE_MS = 7000;
 
   panel("stage", (root) => {
     const stage = byId("avatar-stage");
@@ -137,6 +189,15 @@ import Orb from "./Orb.astro";
     const modes = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-avatar-mode]"));
     let avatar: AvatarHost | null = null;
     let canvasUsed = false;
+    let character: Character = storedCharacter();
+    let entranceTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const playButton = byId<HTMLButtonElement>("btn-play");
+    const playTalk = byId<HTMLButtonElement>("btn-play-talk");
+    const playNote = byId("play-note");
+    let play: PlaySession | null = null;
+    let playNoteTimer: ReturnType<typeof setTimeout> | undefined;
+    let zoomBeforePlay = 1;
 
     /** Mounts the 3D avatar. A canvas that already held a disposed WebGL context is replaced first. */
     const mountAvatar = (): void => {
@@ -151,17 +212,31 @@ import Orb from "./Orb.astro";
       avatar = hostAvatar(stage, canvas);
     };
 
+    /** One pressed button: the character on screen, or the orb. */
+    const pressModes = (): void => {
+      const enabled = stage?.dataset.avatarEnabled === "true";
+      for (const b of modes) {
+        const mode = b.dataset.avatarMode;
+        b.setAttribute("aria-pressed", String(mode === "off" ? !enabled : enabled && mode === character));
+      }
+    };
+
+    const unmountAvatar = (): void => {
+      if (!avatar || !stage) return;
+      play?.stop();
+      avatar.dispose();
+      avatar = null;
+      stage.dataset.avatar = "absent";
+    };
+
     /** `announce` is false on first paint: only a change made by the person is an event. */
     const setAvatarEnabled = (enabled: boolean, announce: boolean): void => {
       if (!stage) return;
       stage.dataset.avatarEnabled = String(enabled);
-      for (const b of modes) b.setAttribute("aria-pressed", String((b.dataset.avatarMode === "on") === enabled));
+      stage.dataset.character = character;
+      pressModes();
       if (enabled) mountAvatar();
-      else if (avatar) {
-        avatar.dispose();
-        avatar = null;
-        stage.dataset.avatar = "absent";
-      }
+      else unmountAvatar();
       if (!announce) return;
       try {
         localStorage.setItem(AVATAR_KEY, enabled ? "on" : "off");
@@ -171,10 +246,49 @@ import Orb from "./Orb.astro";
       window.dispatchEvent(new CustomEvent("avatar:toggle", { detail: { enabled } }));
     };
 
+    /** Slime or the animated 3D avatar; remembered in this browser. From the orb, it is announced like before. */
+    const chooseCharacter = (next: Character): void => {
+      try {
+        localStorage.setItem(CHARACTER_KEY, next);
+        // A ?personaje= in the address would win over the stored choice on the next mount.
+        const url = new URL(location.href);
+        if (url.searchParams.has("personaje")) {
+          url.searchParams.delete("personaje");
+          history.replaceState(history.state, "", url);
+        }
+      } catch {
+        // Private mode: the avatar module falls back to its default.
+      }
+      const changed = next !== character;
+      character = next;
+      if (stage?.dataset.avatarEnabled !== "true") {
+        // From the orb to the slime: the slime hops in and eats this very orb (avatar-host.ts flies it
+        // into the mouth and removes the mark). Never with reduced motion: then it is a plain switch.
+        if (next === "slime" && stage && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          stage.dataset.entrance = "eat";
+          clearTimeout(entranceTimer);
+          entranceTimer = setTimeout(() => {
+            if (stage.dataset.entrance === "eat") delete stage.dataset.entrance; // never leave the orb over the avatar
+          }, 8000);
+        }
+        setAvatarEnabled(true, true);
+        return;
+      }
+      if (!changed || !stage) return;
+      unmountAvatar();
+      stage.dataset.character = character;
+      pressModes();
+      mountAvatar();
+    };
+
     for (const b of modes) {
       b.addEventListener("click", () => {
-        const enabled = b.dataset.avatarMode === "on";
-        if (String(enabled) !== stage?.dataset.avatarEnabled) setAvatarEnabled(enabled, true);
+        const mode = b.dataset.avatarMode;
+        if (mode === "off") {
+          if (stage?.dataset.avatarEnabled !== "false") setAvatarEnabled(false, true);
+        } else if (mode === "slime" || mode === "humano") {
+          chooseCharacter(mode);
+        }
       });
     }
     setAvatarEnabled(avatarWanted(), false);
@@ -184,7 +298,9 @@ import Orb from "./Orb.astro";
       stage?.style.setProperty("--zoom", zoom.toFixed(2));
     };
 
-    toggle?.addEventListener("click", () => (getState().running ? controller.stop() : void controller.start()));
+    const talk = (): void => (getState().running ? controller.stop() : void controller.start());
+    toggle?.addEventListener("click", talk);
+    playTalk?.addEventListener("click", talk);
     for (const m of mutes) m.addEventListener("click", () => controller.interruptSpeech());
     byId("btn-zoom-in")?.addEventListener("click", () => setZoom(zoom + 0.15));
     byId("btn-zoom-out")?.addEventListener("click", () => setZoom(zoom - 0.15));
@@ -197,7 +313,45 @@ import Orb from "./Orb.astro";
       else void stage?.requestFullscreen?.().catch(() => undefined);
     });
 
+    // ── «Jugar» ──
+    const showPlayNote = (text: string): void => {
+      if (!playNote) return;
+      clearTimeout(playNoteTimer);
+      playNote.textContent = text;
+      playNote.dataset.show = "true";
+      playNoteTimer = setTimeout(() => (playNote.dataset.show = "false"), PLAY_NOTE_MS);
+    };
+
+    /** Runs inside the click: the sensor permission (iOS) and fullscreen both need the gesture. */
+    const startPlaying = (): void => {
+      const el = stage;
+      if (play || !el || !avatar) return;
+      zoomBeforePlay = zoom;
+      setZoom(1);
+      play = startPlay(el, avatar, {
+        onSensor: (status, { reducedMotion }) => showPlayNote(reducedMotion ? `${PLAY_NOTE[status]} ${PLAY_NOTE_GENTLE}` : PLAY_NOTE[status]),
+        onEnd: () => {
+          play = null;
+          clearTimeout(playNoteTimer);
+          if (playNote) {
+            playNote.dataset.show = "false";
+            playNote.textContent = "";
+          }
+          setZoom(zoomBeforePlay);
+          el.removeAttribute("tabindex");
+          if (playButton?.isConnected) playButton.focus({ preventScroll: true });
+        },
+      });
+      // Keyboard and screen readers continue inside the stage (the rest of the page is inert now).
+      el.tabIndex = -1;
+      el.focus({ preventScroll: true });
+    };
+    playButton?.addEventListener("click", startPlaying);
+    byId("btn-play-exit")?.addEventListener("click", () => play?.stop());
+
     const onKey = (e: KeyboardEvent): void => {
+      // While playing, Esc leaves the game (play-mode.ts listens after this); it must not also cut the voice.
+      if (play) return;
       if (e.key === "Escape" && getState().status === "speaking" && !document.querySelector("dialog[open]")) {
         controller.interruptSpeech();
       }
@@ -218,11 +372,14 @@ import Orb from "./Orb.astro";
       };
       set("state-badge", LABEL[s.status]);
       set("status-sub", s.simulated && s.running ? `${sub} Demostración sin audio.` : sub);
-      if (toggle) toggle.dataset.running = String(s.running);
-      // Connecting or renewing: the stage and the button both say "wait".
+      // Connecting or renewing: the stage and the talk buttons all say "wait".
       const waiting = s.running && (s.status === "connecting" || s.status === "renewing");
       if (stage) stage.dataset.waiting = String(waiting);
-      if (toggle) toggle.dataset.waiting = String(waiting);
+      for (const b of [toggle, playTalk]) {
+        if (!b) continue;
+        b.dataset.running = String(s.running);
+        b.dataset.waiting = String(waiting);
+      }
       for (const m of mutes) m.disabled = s.status !== "speaking";
     };
 
@@ -253,6 +410,9 @@ import Orb from "./Orb.astro";
     return () => {
       unbindStatus();
       unbindSubtitle();
+      play?.stop();
+      clearTimeout(playNoteTimer);
+      clearTimeout(entranceTimer);
       avatar?.dispose();
       document.removeEventListener("keydown", onKey);
     };
@@ -345,6 +505,14 @@ import Orb from "./Orb.astro";
     visibility: hidden;
   }
 
+  /* From the orb to the slime: the orb stays on screen, at its size, until the slime has eaten it
+     (avatar-host.ts flies it into the mouth, then removes the mark). */
+  #avatar-stage[data-entrance="eat"] .fallback {
+    opacity: 1;
+    visibility: visible;
+    transition: none;
+  }
+
   .live-badge {
     position: absolute;
     top: var(--s-3);
@@ -379,6 +547,7 @@ import Orb from "./Orb.astro";
     top: var(--s-3);
     right: var(--s-3);
     display: grid;
+    justify-items: end;
     gap: var(--s-2);
   }
 
@@ -405,6 +574,58 @@ import Orb from "./Orb.astro";
 
   .tool:disabled {
     opacity: 0.45;
+  }
+
+  /* «Jugar»: a round tool like the others; on a roomy stage it also shows the word. */
+  .tool-play {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--s-2);
+    width: auto;
+    min-width: var(--tap);
+    border-radius: var(--r-pill);
+    color: var(--primary);
+  }
+
+  .tool-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  @container stage (min-width: 461px) {
+    .tool-play {
+      padding: 0 var(--s-4) 0 var(--s-3);
+    }
+
+    .tool-label {
+      position: static;
+      width: auto;
+      height: auto;
+      overflow: visible;
+      clip-path: none;
+      color: var(--primary-ink);
+      font-size: var(--t-sm);
+      font-weight: 650;
+    }
+  }
+
+  /* Only the slime can play: the orb has no body to roll and the animated avatar has no physics. */
+  #avatar-stage:not([data-avatar="ready"]) .tool-play,
+  #avatar-stage[data-character="humano"] .tool-play {
+    display: none;
+  }
+
+  /* Narrow phones: while the voice connects, the long «Conectando, espera» badge needs the room. */
+  @container stage (max-width: 400px) {
+    #avatar-stage[data-waiting="true"] .tool-play {
+      display: none;
+    }
   }
 
   /* ── Avatar 3D / Orbe ──────────────────────────────────────────────────── */
@@ -659,5 +880,146 @@ import Orb from "./Orb.astro";
     .stage-tools {
       grid-auto-flow: column;
     }
+  }
+
+  /* ── Play mode (scripts/play-mode.ts sets data-play, data-play-screen, data-play-sensor) ── */
+
+  #avatar-stage {
+    --play-bar: 3.25rem;
+  }
+
+  #avatar-stage[data-play="on"] {
+    border: 0;
+    border-radius: 0;
+    /* Drags move the slime, never the page; a long press opens no callout. */
+    touch-action: none;
+    overscroll-behavior: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* Focus lands on the stage itself when the game starts; a ring around the whole screen says nothing. */
+  #avatar-stage[data-play="on"]:focus {
+    outline: none;
+  }
+
+  /* iPhone Safari cannot make an element fullscreen: the stage covers the viewport instead. */
+  #avatar-stage[data-play-screen="pseudo"] {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  :global(html[data-play-lock]),
+  :global(html[data-play-lock] body) {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  /* Clear of the notch, the rounded corners and the home indicator. */
+  #avatar-stage[data-play="on"] .live-badge {
+    top: calc(var(--s-3) + env(safe-area-inset-top, 0px));
+    left: calc(var(--s-3) + env(safe-area-inset-left, 0px));
+    pointer-events: none;
+  }
+
+  #avatar-stage[data-play="on"] .stage-tools {
+    top: calc(var(--s-3) + env(safe-area-inset-top, 0px));
+    right: calc(var(--s-3) + env(safe-area-inset-right, 0px));
+  }
+
+  /* Up there only «Silenciar» stays: camera, zoom, fullscreen and the 3D/orb switch are no use while playing. */
+  #avatar-stage[data-play="on"] .tool-mute {
+    display: grid;
+  }
+
+  #avatar-stage[data-play="on"] .tool-play,
+  #avatar-stage[data-play="on"] #btn-fullscreen,
+  #avatar-stage[data-play="on"] .tool-cam,
+  #avatar-stage[data-play="on"] .stage-mode,
+  #avatar-stage[data-play="on"] .wait-note {
+    display: none;
+  }
+
+  /* The slime keeps talking while you play: the caption sits over the bar, and lets drags through. */
+  #avatar-stage[data-play="on"] .subtitle {
+    display: block;
+    bottom: calc(var(--s-4) + var(--play-bar) + var(--s-3) + env(safe-area-inset-bottom, 0px));
+    pointer-events: none;
+  }
+
+  .play-note {
+    position: absolute;
+    top: calc(var(--s-3) + var(--tap) + var(--s-3) + env(safe-area-inset-top, 0px));
+    left: 50%;
+    z-index: 3;
+    display: none;
+    width: max-content;
+    max-width: min(calc(100% - var(--s-6)), 30rem);
+    padding: var(--s-3) var(--s-4);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--card);
+    box-shadow: var(--shadow-float);
+    color: var(--ink);
+    font-size: var(--t-base);
+    font-weight: 550;
+    line-height: 1.4;
+    text-align: center;
+    text-wrap: pretty;
+    translate: -50% 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+
+  #avatar-stage[data-play="on"] .play-note {
+    display: block;
+  }
+
+  .play-note[data-show="true"] {
+    opacity: 1;
+  }
+
+  /* Phone on its side: the hint goes up between the badge and «Silenciar», clear of the slime. */
+  @container stage (max-height: 480px) and (min-width: 720px) {
+    .play-note {
+      top: calc(var(--s-3) + env(safe-area-inset-top, 0px));
+      max-width: min(calc(100% - 26rem), 30rem);
+      padding-block: var(--s-2);
+    }
+  }
+
+  .play-bar {
+    position: absolute;
+    left: 50%;
+    bottom: calc(var(--s-4) + env(safe-area-inset-bottom, 0px));
+    z-index: 3;
+    display: none;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--s-3);
+    width: max-content;
+    max-width: calc(100% - var(--s-5));
+    translate: -50% 0;
+  }
+
+  #avatar-stage[data-play="on"] .play-bar {
+    display: flex;
+  }
+
+  .play-bar .btn {
+    min-height: var(--play-bar);
+    padding-inline: var(--s-5);
+    font-size: var(--t-base);
+  }
+
+  .play-exit {
+    border-color: var(--border-field);
+    box-shadow: var(--shadow-float);
+    font-weight: 650;
   }
 </style>

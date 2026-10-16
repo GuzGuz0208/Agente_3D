@@ -1,8 +1,9 @@
 /*
  * Design tokens. Two hues: the slime's pink («rose») and a harmonic violet
  * accent, over warm plum neutrals. The avatar's body is rose, so rose is the
- * agent's side (primary, speaking) and violet the person's side (talk button,
- * user bubbles, listening). The old «Holst» blues were retired: blue text and
+ * agent's side (primary, speaking) and violet the person's side (user bubbles,
+ * listening), kept soft. The talk button is the call to action (--cta*): a
+ * light rose, the slime's own colour, because a saturated violet shouted. The old «Holst» blues were retired: blue text and
  * hairlines clashed with the pink body, so neutrals moved to a plum/mauve scale
  * that shares the slime's hue at very low chroma.
  *
@@ -77,6 +78,22 @@
   --danger: var(--red-700);
   --danger-soft: var(--red-100);
 
+  /* Call to action («Hablar», «Siguiente»): a piece of the slime. A rose
+     slightly lighter than its body, lit from above, with wine ink. It is the
+     warmest, most saturated thing on a pale page, so it draws the eye without
+     the cold violet that used to clash with the pink. Ink stays ≥ 4.5:1 over
+     every stop (rest 5.2:1, hover 6.5:1, pressed 4.6:1).
+     «Detener» keeps the same pill in dark wine: told apart by value and icon. */
+  --cta: color-mix(in srgb, var(--rose-500) 65%, var(--rose-400));
+  --cta-hover: var(--rose-400);
+  --cta-press: var(--rose-500);
+  --cta-ink: var(--rose-950);
+  --cta-shine: linear-gradient(180deg, color-mix(in srgb, var(--white) 26%, transparent), transparent 62%);
+  --cta-rim: color-mix(in srgb, var(--rose-800) 30%, transparent);
+  --cta-glow: color-mix(in srgb, var(--rose-600) 55%, transparent);
+  --cta-stop: var(--primary-ink);
+  --cta-stop-hover: var(--rose-950);
+
   /* Charts: the agent's measures in rose, the person's / tools in violet */
   --chart: var(--rose-500);
   --chart-strong: var(--rose-700);
@@ -143,6 +160,9 @@
     0 10px 24px -10px color-mix(in srgb, var(--plum-900) 24%, transparent);
 
   --ease: cubic-bezier(0.22, 0.8, 0.26, 1);
+  /* Sine ease-in-out: starts and lands softly, never overshoots. For things that
+     travel across the screen (the help tour), where a fast start feels abrupt. */
+  --ease-glide: cubic-bezier(0.37, 0, 0.63, 1);
 }
 
 /* Rose = the agent's side (ready, connecting, speaking): the slime itself.

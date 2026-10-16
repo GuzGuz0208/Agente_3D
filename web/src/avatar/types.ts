@@ -68,8 +68,28 @@ export interface AvatarHandle {
   setTilt?(x: number, y: number): void;
   /** Subscribes to hits against the edges (strength 0..1), e.g. to vibrate the phone. Returns the unsubscribe. */
   onImpact?(listener: (strength: number) => void): () => void;
-  /** Entrance used when the person switches from the orb to the avatar: the slime eats the orb. */
-  eatOrb?(): void;
+  /**
+   * Entrance used when the person switches from the orb to the avatar: the slime jumps in and eats
+   * the orb that is on screen. Resolves when the entrance is over (at once with reduced motion).
+   */
+  eatOrb?(options?: EatOrbOptions): Promise<void> | void;
+}
+
+/** Where the on-screen orb is, and how to fly it into the mouth (client coordinates, CSS pixels). */
+export interface EatOrbOptions {
+  /** Centre and radius of the orb on screen: the slime lands beside it and looks at it. */
+  orb?: { x: number; y: number; radius: number };
+  /** Called once, when the mouth is open wide: the orb must be inside it within `closesIn` ms. */
+  onBite?: (bite: OrbBite) => void;
+}
+
+export interface OrbBite {
+  /** Centre of the open mouth, and its width. */
+  x: number;
+  y: number;
+  width: number;
+  /** Milliseconds until the mouth snaps shut. */
+  closesIn: number;
 }
 
 export interface MountAvatarOptions {

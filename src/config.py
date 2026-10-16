@@ -96,6 +96,9 @@ class Settings(BaseSettings):
     analyst_fast_model: str = "gemini-3.5-flash-lite"
     analyst_deep_model: str = "gpt-5.4-mini"
     analyst_deadline_s: float = 3.0
+    # A text estimate still pending after this many seconds gets the next profile beside it
+    # (fast p95 ~1.6-1.7 s on 2026-10-16; the deep profile then has ~1.3 s).
+    analyst_hedge_s: float = 1.6
 
     @property
     def cors_origins(self) -> list[str]:

@@ -21,10 +21,15 @@ import IconBank from "../components/IconBank.astro";
 
 <script>
   import { panel } from "../scripts/dom";
+  import { bindEmotionGlow } from "../scripts/emotion-glow";
   import * as controller from "../voice/controller";
 
   /** Hidden this long (another tab, phone locked) ends the conversation. */
   const HIDDEN_STOP_MS = 60_000;
+
+  // The stage's border glows with the tone of the conversation (styles: global.css «Emotion glow»).
+  // Set up on every visit to this page and torn down before the router swaps it out.
+  panel("avatar-stage", bindEmotionGlow);
 
   panel("console", () => {
     // Re-entering the console keeps the finished conversation on screen (and on the admin
