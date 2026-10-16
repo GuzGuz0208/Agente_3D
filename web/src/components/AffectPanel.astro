@@ -150,7 +150,7 @@
     min-width: 0;
   }
 
-  .reading.sent-positive { --tone: var(--blue-700); }
+  .reading.sent-positive { --tone: var(--chart-strong); }
   .reading.sent-negative { --tone: var(--violet-700); }
   .reading.sent-uncertain { --tone: var(--ink-3); }
 
@@ -262,7 +262,7 @@
 
   .valence path {
     fill: none;
-    stroke: var(--blue-400);
+    stroke: var(--chart);
     stroke-width: 2;
     stroke-linejoin: round;
     stroke-linecap: round;
@@ -273,9 +273,9 @@
     stroke-width: 2;
   }
 
-  /* Height already encodes the valence; tone repeats it: dark blue up, violet down. */
-  .valence .pos { fill: var(--blue-700); }
-  .valence .neu { fill: var(--blue-400); }
+  /* Height already encodes the valence; tone repeats it: deep rose up, plum level, violet down. */
+  .valence .pos { fill: var(--chart-strong); }
+  .valence .neu { fill: var(--chart-quiet); }
   .valence .neg { fill: var(--violet-700); }
 
   .affect .style {

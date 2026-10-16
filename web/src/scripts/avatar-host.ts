@@ -9,15 +9,21 @@
  *
  * Expected module shape (src/avatar/index.ts):
  *   mountAvatar(canvas, opts) => Promise<AvatarHandle>
- *   AvatarHandle: setState(state), setMouthLevel(0..1), attachAnalyser?(node), resetCamera(), dispose()
+ *   expressionFor?({ affect, style }) => expression name   (pure, optional)
+ *   AvatarHandle: setState(state), setMouthLevel(0..1), attachAnalyser?(node), resetCamera(), dispose(),
+ *                 setExpression?(expression)
+ *
+ * Face: the latest affect reading and the active style are mapped to an expression
+ * by the module's own `expressionFor`, and pushed only when it changes. The
+ * character blends it with its state (asleep stays asleep, an error stays sad).
  *
  * Lip-sync source: with a real engine the mouth follows the spectrum of the audio
  * actually played (the player's AnalyserNode); with the scripted double there is
  * no audio, so a synthetic pattern follows the transcript cadence.
  */
 import { getPlayer } from "../voice/audio/player";
-import { getState, subscribe } from "../voice/store";
-import type { EngineStatus } from "../voice/types";
+import { getState, subscribe, type ConsoleState } from "../voice/store";
+import type { AffectEstimate, EngineStatus, StyleId } from "../voice/types";
 
 export interface AvatarHandle {
   setState(state: EngineStatus): void;
@@ -26,10 +32,18 @@ export interface AvatarHandle {
   attachAnalyser?(node: AnalyserNode | null): void;
   resetCamera(): void;
   dispose(): void;
+  /** Face for the tone of the conversation. */
+  setExpression?(expression: string): void;
+}
+
+interface ExpressionSource {
+  affect: Pick<AffectEstimate, "sentiment" | "emotion" | "state_hint"> | null;
+  style: StyleId;
 }
 
 interface AvatarModule {
   mountAvatar(canvas: HTMLCanvasElement, opts?: Record<string, unknown>): Promise<AvatarHandle>;
+  expressionFor?(input: ExpressionSource): string;
 }
 
 const loaders = import.meta.glob("../avatar/index.ts") as Record<string, () => Promise<unknown>>;
@@ -47,6 +61,8 @@ export function hostAvatar(stage: HTMLElement, canvas: HTMLCanvasElement): Avata
   let mouthTimer: ReturnType<typeof setInterval> | undefined;
   let pulse = 0;
   let analyserOn = false;
+  let toExpression: AvatarModule["expressionFor"] | null = null;
+  let expression: string | null = null;
 
   const safely = (fn: () => void): void => {
     try {
@@ -87,6 +103,18 @@ export function hostAvatar(stage: HTMLElement, canvas: HTMLCanvasElement): Avata
     }, 60);
   };
 
+  /** Latest affect reading + active style -> face; pushed only when it changes. */
+  const syncExpression = (state: ConsoleState): void => {
+    const map = toExpression;
+    if (!map || typeof handle?.setExpression !== "function") return;
+    safely(() => {
+      const next = map({ affect: state.affect[state.affect.length - 1]?.estimate ?? null, style: state.style.style });
+      if (next === expression) return;
+      expression = next;
+      handle?.setExpression?.(next);
+    });
+  };
+
   const unsubscribe = subscribe((state, slices) => {
     if (!handle) return;
     if (slices.has("transcript")) pulse = 1;
@@ -97,6 +125,7 @@ export function hostAvatar(stage: HTMLElement, canvas: HTMLCanvasElement): Avata
       safely(() => handle?.setState(state.status));
       mouth(state.status === "speaking");
     }
+    if (slices.has("affect") || slices.has("style") || slices.has("reset")) syncExpression(state);
   });
 
   const ready = (async (): Promise<boolean> => {
@@ -115,10 +144,12 @@ export function hostAvatar(stage: HTMLElement, canvas: HTMLCanvasElement): Avata
         return false;
       }
       handle = mounted;
+      if (typeof mod.expressionFor === "function") toExpression = mod.expressionFor;
       stage.dataset.avatar = "ready";
       const status = getState().status;
       safely(() => handle?.setState(status));
       mouth(status === "speaking");
+      syncExpression(getState());
       return true;
     } catch (err) {
       console.warn("[avatar] not available, keeping the orb", err);

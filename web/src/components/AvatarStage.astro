@@ -58,7 +58,7 @@ import Orb from "./Orb.astro";
     <!-- Shown only while the voice connects: tells the person to wait before speaking. -->
     <p class="wait-note" id="wait-note" data-testid="wait-note" aria-hidden="true">
       <span class="wait-spin" aria-hidden="true"></span>
-      <span><strong>Preparando la voz…</strong> Espera unos segundos; te aviso cuando puedas hablar.</span>
+      <span><strong>Preparando la voz…</strong><span class="wait-more"> Espera unos segundos; te aviso cuando puedas hablar.</span></span>
     </p>
 
     <p class="subtitle" id="subtitle" data-testid="subtitle" aria-hidden="true" hidden></p>
@@ -469,7 +469,7 @@ import Orb from "./Orb.astro";
     display: block;
     font-size: var(--t-xs);
     font-weight: 700;
-    color: var(--blue-300);
+    color: var(--rose-300);
   }
 
   .subtitle.role-user :global(b) {
@@ -565,6 +565,24 @@ import Orb from "./Orb.astro";
   #avatar-stage[data-waiting="true"] .wait-note {
     opacity: 1;
     transform: translate(-50%, 0);
+  }
+
+  /* While the voice connects the mode switch is of no use, and the note sits where it is. */
+  #avatar-stage[data-waiting="true"] .stage-mode {
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  /* A short stage (phones): one short line, low, so the sleeping slime stays visible. */
+  @container stage (max-height: 320px) {
+    .wait-note {
+      bottom: var(--s-2);
+      padding: var(--s-1) var(--s-3);
+    }
+
+    .wait-more {
+      display: none;
+    }
   }
 
   @media (max-width: 560px) {

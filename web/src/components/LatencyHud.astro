@@ -172,13 +172,13 @@
   .hud .fill {
     inset: 0 auto 0 0;
     border-radius: var(--r-pill);
-    background: var(--blue-400);
+    background: var(--chart);
     transition: width 0.5s var(--ease);
   }
 
   /* Over the target: darker and hatched, so it reads without a warning hue. */
   .hud .fill.late {
-    background: repeating-linear-gradient(-45deg, var(--blue-900) 0 6px, var(--blue-700) 6px 12px);
+    background: repeating-linear-gradient(-45deg, var(--chart-deep) 0 6px, var(--chart-strong) 6px 12px);
   }
 
   .hud .seg-tool {
@@ -242,7 +242,7 @@
     border-radius: 2px;
   }
 
-  .hud .stats .key dt::before { background: var(--blue-400); }
+  .hud .stats .key dt::before { background: var(--chart); }
   .hud .stats .ack dt::before { background: var(--violet-300); rotate: 45deg; }
   .hud .stats .tool dt::before { background: var(--violet-700); }
 

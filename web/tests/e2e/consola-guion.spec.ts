@@ -42,13 +42,14 @@ test("estado inicial: tema claro y dos tarjetas, avatar a la izquierda y chat a 
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
 });
 
-test("controles del objetivo de diseño: verde «Activar micrófono», «Silenciar», entrada de texto y azul «Enviar»", async () => {
+test("controles del objetivo de diseño: violeta «Activar micrófono», «Silenciar», entrada de texto y rosado «Enviar»", async () => {
   const toggle = page.locator("#btn-toggle");
   await expect(toggle).toBeVisible();
   await expect(toggle).toHaveText(/Activar micrófono/);
+  // Violet (--accent, the person's side): blue channel well above red and green.
   const [tr, tg, tb] = rgb(await toggle.evaluate((el) => getComputedStyle(el).backgroundColor));
-  expect(tg).toBeGreaterThan(tr + 60);
-  expect(tg).toBeGreaterThan(tb + 60);
+  expect(tb).toBeGreaterThan(tr + 60);
+  expect(tb).toBeGreaterThan(tg + 60);
 
   const mute = page.locator("#btn-mute");
   await expect(mute).toBeVisible();
@@ -59,9 +60,10 @@ test("controles del objetivo de diseño: verde «Activar micrófono», «Silenci
   await expect(page.locator("#ask-input")).toHaveAttribute("placeholder", /Escribe tu pregunta/);
   const send = page.locator("#ask-form button[type=submit]");
   await expect(send).toHaveText(/Enviar/);
+  // Rose (--primary, the agent's side): red channel well above green and blue.
   const [sr, sg, sb] = rgb(await send.evaluate((el) => getComputedStyle(el).backgroundColor));
-  expect(sb).toBeGreaterThan(sr + 100);
-  expect(sb).toBeGreaterThan(sg + 60);
+  expect(sr).toBeGreaterThan(sg + 100);
+  expect(sr).toBeGreaterThan(sb + 60);
 
   // The toggle sits in the left card, the composer in the right one.
   const stage = (await page.locator("#stage").boundingBox())!;

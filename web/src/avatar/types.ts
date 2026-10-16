@@ -14,6 +14,22 @@ export type AvatarState =
   | "renewing"
   | "error";
 
+/**
+ * Face the avatar shows on top of its state, chosen from the tone of the
+ * conversation (`expression.ts`). The state still wins where it must: an
+ * avatar that is asleep (connecting) or failed (error) keeps that face.
+ */
+export type AvatarExpression =
+  | "neutral"
+  | "happy"
+  | "joyful"
+  | "calm"
+  | "focused"
+  | "surprised"
+  | "concerned"
+  | "sad"
+  | "confused";
+
 /** `slime` is the default; `humano` is the realistic VRM model, kept for comparison. */
 export type AvatarCharacter = "slime" | "humano";
 
@@ -44,6 +60,8 @@ export interface AvatarHandle {
   wave?(): void;
   /** Extra: render statistics, for diagnostics. */
   getDebugInfo?(): AvatarDebugInfo;
+  /** Extra: face for the tone of the conversation; eases in, never snaps. */
+  setExpression?(e: AvatarExpression): void;
 }
 
 export interface MountAvatarOptions {

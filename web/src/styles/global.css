@@ -168,7 +168,7 @@ svg.lucide {
 
 .btn:hover:not(:disabled) {
   background: var(--subtle-2);
-  border-color: var(--blue-500);
+  border-color: var(--border-hover);
 }
 
 .btn:active:not(:disabled) {
@@ -239,7 +239,7 @@ svg.lucide {
 
 .tag-live { background: var(--accent-soft); color: var(--accent-ink); }
 .tag-fresh { background: var(--primary-soft); color: var(--primary-ink); }
-.tag-stale { background: var(--card); border-color: var(--blue-500); border-style: dashed; color: var(--primary-ink); }
+.tag-stale { background: var(--card); border-color: var(--border-field); border-style: dashed; color: var(--primary-ink); }
 .tag-bad { background: var(--danger-soft); color: var(--danger); }
 .tag-quiet { background: var(--subtle-2); color: var(--ink-2); }
 .tag-note { background: var(--card); border-color: var(--border-strong); color: var(--ink-2); }
@@ -275,7 +275,7 @@ svg.lucide {
 }
 
 .select:hover {
-  border-color: var(--blue-500);
+  border-color: var(--border-hover);
 }
 
 /* ── View transitions ────────────────────────────────────────────────────── */

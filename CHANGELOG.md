@@ -5,23 +5,61 @@ Este proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
-### Added — Avatar slime (rama `feat/avatar-slime`, 2026-10-15)
-- **Nuevo personaje por defecto: un slime** (gelatina azul con orejas de gato y cola), pensado para
-  adultos mayores: una cara grande y legible, silueta calmada y lenguaje corporal que dice el estado
-  aunque no haya sonido. Diseño original y procedural (`web/src/avatar/slime.ts`): sin archivo de
-  modelo, sin descarga y sin licencia de terceros.
+### Added — Avatar slime rosado (ramas `feat/avatar-slime` y `feat/slime-rosado`, 2026-10-15)
+- **Nuevo personaje por defecto: un slime rosado**, pensado para adultos mayores: una cara grande y
+  legible, silueta calmada y lenguaje corporal que dice el estado aunque no haya sonido. Gomita de
+  base ancha y plana y cima redonda, rosado sólido y brillante (`--rose-500`) que se oscurece hacia
+  abajo (`--rose-700`), un solo brillo arriba a la izquierda, ojos ovalados granate muy oscuro con un
+  brillito, sin orejas ni cola. Toma como referencia de estilo los slimes de los juegos de
+  criaturas de gelatina, pero el diseño es original y procedural (`web/src/avatar/slime.ts`): sin
+  archivo de modelo, sin descarga y sin licencia de terceros. Colores y proporciones viven en
+  `SLIME_LOOKS` (por ahora solo `rosado`), así que otra forma es una entrada más.
 - **El estado se ve en el cuerpo:** conectando = dormido con «z» flotando; listo = despierta con un
-  saltito; escuchando = orejas arriba e inclinado; pensando = mira de lado y tres puntos; hablando =
-  rebota al ritmo de las sílabas; error = se desinfla, orejas caídas y ceño. Tocarlo le hace cosquillas.
+  saltito; escuchando = se inclina hacia ti; pensando = mira de lado y tres puntos; hablando = rebota
+  al ritmo de las sílabas; renovando = párpados pesados; error = se desinfla, párpados caídos y ceño.
+  Tocarlo le hace cosquillas (ojos «^ ^» y risa); al saludar guiña un ojo.
+- **Caras según el tono de la conversación:** `web/src/avatar/expression.ts` (función pura, con
+  pruebas en `web/tests/contract/expression.test.ts`) elige una de nueve expresiones (`neutral`,
+  `happy`, `joyful`, `calm`, `focused`, `surprised`, `concerned`, `sad`, `confused`) a partir de la
+  última lectura de afecto (emoción, estado, sentimiento) y, si no dice nada, del estilo activo
+  (cálido → ojos «^ ^», directo → concentrado, didáctico → sonrisa). La boca «D» abierta es la cara de
+  alegría. `avatar-host.ts` la empuja con `setExpression` (nuevo método opcional de `AvatarHandle`)
+  solo cuando cambia. El estado manda cuando debe: dormido sigue dormido, el error sigue triste, y
+  mientras habla los visemas mandan en la boca y la expresión queda en los ojos. Transiciones suaves.
 - **Boca con visemas grande a propósito** (mismo `LipSync`: cinco vocales), para que el movimiento de
   labios se pueda seguir desde lejos.
 - **Carga más liviana:** la vista por defecto ya no descarga el modelo VRM de 13 MB; el código del
-  slime son 21 KB. Medido en el build de producción.
+  slime son 24 KB. Medido en el build de producción.
+
+### Changed — Paleta rosado + violeta (2026-10-15)
+- **Identidad de color a juego con el slime:** rosado (`--rose-*`) para el lado del agente (botón
+  «Enviar», logo, titulares, navegación activa, favicon) y violeta para el lado de la persona
+  («Hablar», sus mensajes, el anillo de foco). Los azules se retiran; texto y bordes pasan a neutros
+  ciruela de croma bajo (`--plum-*`). Sin cambios de layout ni de tipografía.
+- Colores por estado del escenario y del orbe coherentes (escuchando y pensando en violeta, hablando
+  en rosa, error en ladrillo `#b3261e`, distinguible del rosado). Tokens nuevos `--border-hover` y
+  `--chart*` para barras y gráficas.
+- **Accesibilidad:** 73 parejas de color medidas, todas cumplen WCAG AA (texto ≥ 4,5:1, gráficos ≥ 3:1).
+- Archivos: `web/src/styles/tokens.css`, `global.css`, `web/src/scripts/orb.ts`, `web/public/favicon.svg`,
+  `theme-color` en `Base.astro` y bloques de estilo de `AvatarStage`, `Transcript`, `HelpTour`,
+  `LatencyHud`, `ApiPanel`, `AffectPanel` y `AdminControls`.
+
+### Fixed — Aviso de espera
+- Mientras la voz conecta se oculta el selector «Avatar 3D / Orbe», que quedaba debajo del aviso
+  «Preparando la voz…»; en escenarios bajos (celular) el aviso queda en una línea para no tapar al slime.
 
 ### Changed — Avatar
 - `web/src/avatar/index.ts` pasa a ser la entrada: elige personaje (`slime` por defecto, `humano` con
   `?personaje=humano`, recordado en el navegador) y carga cada uno en su propio paquete. El avatar VRM
-  se movió a `human.ts` y el contrato compartido a `types.ts`. `avatar-host.ts` no cambió.
+  se movió a `human.ts` y el contrato compartido a `types.ts`. `avatar-host.ts` solo suma la
+  expresión (lee `expressionFor` del mismo módulo cargado en diferido, así sigue funcionando sin él).
+- Slime rosado verificado en Edge con capturas de cada estado y cada expresión (dev server):
+  `astro check` 0 errores, 222 pruebas de front, build de producción correcto.
+- QA cruzada (2026-10-15): afecto → cara probado de punta a punta en `/consola` (pregunta escrita →
+  analista → store → `setExpression`; las nueve caras cambian). Las aserciones de color de las
+  pruebas e2e (`consola-guion.spec.ts`, rótulos de `consola-controles.spec.ts`) pasan a la paleta
+  nueva: «Hablar» violeta (`--accent`) y «Enviar» rosado (`--primary`). Comentario de `tokens.css`
+  reformulado sin nombres de criaturas de juegos de terceros.
 - Verificado en Edge (escritorio y celular, build de producción): flujo real de estados con el motor
   simulado, «Detener» sin desmontar el avatar, personaje humano, `prefers-reduced-motion`, 0 errores de
   consola; `astro check` 0 errores; 200 pruebas de front.

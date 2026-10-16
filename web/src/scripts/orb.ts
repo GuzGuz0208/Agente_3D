@@ -1,7 +1,7 @@
 /**
  * The orb: a canvas visualiser of the engine status.
  *
- * A ring of radial bars around a glowing core. Tone (blue or violet) and motion change with the
+ * A ring of radial bars around a glowing core. Tone (rose or violet) and motion change with the
  * status; every transcript event adds a small pulse, so it visibly reacts to
  * speech. With prefers-reduced-motion it draws one still frame per status.
  */
@@ -23,27 +23,37 @@ interface Mood {
   jitter: number;
 }
 
-type Tone = "blue-900" | "blue-700" | "blue-500" | "blue-400" | "blue-300" | "violet-700" | "violet-500" | "violet-300" | "red-700";
+type Tone =
+  | "rose-700"
+  | "rose-600"
+  | "rose-500"
+  | "rose-400"
+  | "rose-300"
+  | "violet-700"
+  | "violet-500"
+  | "violet-300"
+  | "plum-900"
+  | "red-700";
 
 /** Shape of a mood; its two colours are token names resolved from tokens.css at mount. */
 type MoodSpec = Omit<Mood, "a" | "b"> & { a: Tone; b: Tone };
 
-/** Blues for the agent's side, violets for the person's side and for waiting. */
+/** Rose (the slime) for the agent's side, violets for the person's side and for waiting. */
 const SPECS: Record<EngineStatus, MoodSpec> = {
-  idle: { a: "blue-500", b: "violet-300", energy: 0.1, spin: 0.12, sweep: 0, jitter: 0 },
-  connecting: { a: "blue-400", b: "blue-700", energy: 0.3, spin: 2.4, sweep: 1, jitter: 0 },
-  listening: { a: "violet-500", b: "blue-400", energy: 0.34, spin: 0.3, sweep: 0, jitter: 0.9 },
+  idle: { a: "rose-500", b: "violet-300", energy: 0.1, spin: 0.12, sweep: 0, jitter: 0 },
+  connecting: { a: "rose-400", b: "rose-700", energy: 0.3, spin: 2.4, sweep: 1, jitter: 0 },
+  listening: { a: "violet-500", b: "rose-400", energy: 0.34, spin: 0.3, sweep: 0, jitter: 0.9 },
   thinking: { a: "violet-300", b: "violet-700", energy: 0.36, spin: 3.2, sweep: 1, jitter: 0.1 },
-  speaking: { a: "blue-700", b: "violet-500", energy: 0.85, spin: 0.5, sweep: 0, jitter: 0.35 },
-  renewing: { a: "violet-700", b: "blue-300", energy: 0.3, spin: -2.6, sweep: 1, jitter: 0 },
-  error: { a: "red-700", b: "blue-900", energy: 0.04, spin: 0, sweep: 0, jitter: 0 },
+  speaking: { a: "rose-600", b: "violet-500", energy: 0.85, spin: 0.5, sweep: 0, jitter: 0.35 },
+  renewing: { a: "violet-700", b: "rose-300", energy: 0.3, spin: -2.6, sweep: 1, jitter: 0 },
+  error: { a: "red-700", b: "plum-900", energy: 0.04, spin: 0, sweep: 0, jitter: 0 },
 };
 
 /** Reads a `--token` hex colour from the stylesheet, so the palette has one source. */
 function token(name: Tone): RGB {
   const hex = getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim().replace("#", "");
   const n = Number.parseInt(hex.length === 3 ? hex.replace(/./g, "$&$&") : hex, 16);
-  return Number.isNaN(n) ? [77, 121, 168] : [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  return Number.isNaN(n) ? [229, 80, 125] : [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
 function resolveMoods(): Record<EngineStatus, Mood> {

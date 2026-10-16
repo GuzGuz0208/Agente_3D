@@ -19,10 +19,14 @@ export type {
   AvatarCharacter,
   AvatarDebugInfo,
   AvatarErrorCode,
+  AvatarExpression,
   AvatarHandle,
   AvatarState,
   MountAvatarOptions,
 } from "./types";
+// Re-exported so the host reaches it through the same lazily loaded module (it must work without src/avatar/).
+export { expressionFor } from "./expression";
+export type { AffectReading, ExpressionInput } from "./expression";
 
 const CHARACTER_KEY = "ips.character";
 const DEFAULT_CHARACTER: AvatarCharacter = "slime";

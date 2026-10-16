@@ -462,8 +462,8 @@ test.describe("teclado y accesibilidad básica (NF-06)", () => {
     await page.goto("/consola");
     await ask(page, "¿Cuántas camas hay en total?", "97.036");
     const targets: Record<string, string> = {
-      "botón verde «Activar micrófono/Detener»": "#btn-toggle",
-      "botón azul «Enviar»": "#ask-form button[type=submit]",
+      "botón violeta «Hablar/Detener»": "#btn-toggle",
+      "botón rosado «Enviar»": "#ask-form button[type=submit]",
       "texto de la burbuja del agente": "#msgs .msg.from-agent .text",
       "texto de la burbuja del usuario": "#msgs .msg.from-user .text",
       "hora de la burbuja": "#msgs .msg.from-user .msg-meta time",
@@ -482,13 +482,13 @@ test.describe("teclado y accesibilidad básica (NF-06)", () => {
       if (!c) failures.push(`${label}: no existe ${selector}`);
       else if (c.ratio < 4.5) failures.push(`${label} (${selector}): ${c.ratio}:1, ${c.fg} sobre ${c.bg}, ${c.px}px`);
     }
-    // The green button sits on white; with the session stopped it is the main call to action.
+    // The violet button sits on white; with the session stopped it is the main call to action.
     await page.locator("#btn-restart").click();
     await expect(page.locator("#btn-toggle")).toHaveAttribute("data-running", "false");
     await page.mouse.move(700, 300);
     await page.waitForTimeout(500); // background-color transition
-    const green = await contrastOf(page, "#btn-toggle");
-    if (green && green.ratio < 4.5) failures.push(`botón verde «Activar micrófono» en reposo: ${green.ratio}:1, ${green.fg} sobre ${green.bg}, ${green.px}px`);
+    const violet = await contrastOf(page, "#btn-toggle");
+    if (violet && violet.ratio < 4.5) failures.push(`botón violeta «Hablar» en reposo: ${violet.ratio}:1, ${violet.fg} sobre ${violet.bg}, ${violet.px}px`);
     expect(failures).toEqual([]);
   });
 });
