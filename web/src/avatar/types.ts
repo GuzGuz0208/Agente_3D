@@ -62,6 +62,14 @@ export interface AvatarHandle {
   getDebugInfo?(): AvatarDebugInfo;
   /** Extra: face for the tone of the conversation; eases in, never snaps. */
   setExpression?(e: AvatarExpression): void;
+  /** Play mode: the body leaves its spot, rolls with `setTilt` and bounces off the edges of the frame. */
+  setPlayMode?(on: boolean): void;
+  /** Gravity from the device tilt, in screen space: x to the right, y downwards, each -1..1. */
+  setTilt?(x: number, y: number): void;
+  /** Subscribes to hits against the edges (strength 0..1), e.g. to vibrate the phone. Returns the unsubscribe. */
+  onImpact?(listener: (strength: number) => void): () => void;
+  /** Entrance used when the person switches from the orb to the avatar: the slime eats the orb. */
+  eatOrb?(): void;
 }
 
 export interface MountAvatarOptions {

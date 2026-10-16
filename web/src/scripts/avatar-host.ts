@@ -34,6 +34,14 @@ export interface AvatarHandle {
   dispose(): void;
   /** Face for the tone of the conversation. */
   setExpression?(expression: string): void;
+  /** Play mode: the body leaves its spot, rolls with `setTilt` and bounces off the edges of the frame. */
+  setPlayMode?(on: boolean): void;
+  /** Gravity from the device tilt, in screen space: x to the right, y downwards, each -1..1. */
+  setTilt?(x: number, y: number): void;
+  /** Subscribes to hits against the edges (strength 0..1), e.g. to vibrate the phone. Returns the unsubscribe. */
+  onImpact?(listener: (strength: number) => void): () => void;
+  /** Entrance used when the person switches from the orb to the avatar: the slime eats the orb. */
+  eatOrb?(): void;
 }
 
 interface ExpressionSource {
@@ -53,6 +61,11 @@ export interface AvatarHost {
   ready: Promise<boolean>;
   resetCamera(): void;
   dispose(): void;
+  /** Play mode passthroughs: no-ops when the character does not support them. */
+  setPlayMode(on: boolean): void;
+  setTilt(x: number, y: number): void;
+  /** Edge hits of the avatar (strength 0..1). Safe to call before the avatar is ready. */
+  onImpact(listener: (strength: number) => void): () => void;
 }
 
 export function hostAvatar(stage: HTMLElement, canvas: HTMLCanvasElement): AvatarHost {
@@ -158,13 +171,28 @@ export function hostAvatar(stage: HTMLElement, canvas: HTMLCanvasElement): Avata
     }
   })();
 
+  // Impact listeners may subscribe before the avatar is mounted; they are attached once it is.
+  const impactListeners = new Set<(strength: number) => void>();
+  let detachImpacts: (() => void) | null = null;
+  void ready.then((ok) => {
+    if (ok && handle?.onImpact) detachImpacts = handle.onImpact((s) => impactListeners.forEach((l) => l(s)));
+  });
+
   return {
     ready,
     resetCamera: () => safely(() => handle?.resetCamera()),
+    setPlayMode: (on) => safely(() => handle?.setPlayMode?.(on)),
+    setTilt: (x, y) => safely(() => handle?.setTilt?.(x, y)),
+    onImpact: (listener) => {
+      impactListeners.add(listener);
+      return () => impactListeners.delete(listener);
+    },
     dispose: () => {
       disposed = true;
       unsubscribe();
       clearInterval(mouthTimer);
+      detachImpacts?.();
+      impactListeners.clear();
       safely(() => handle?.dispose());
       handle = null;
     },
