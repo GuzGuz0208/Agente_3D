@@ -5,6 +5,27 @@ Este proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+### Added — Avatar slime (rama `feat/avatar-slime`, 2026-10-15)
+- **Nuevo personaje por defecto: un slime** (gelatina azul con orejas de gato y cola), pensado para
+  adultos mayores: una cara grande y legible, silueta calmada y lenguaje corporal que dice el estado
+  aunque no haya sonido. Diseño original y procedural (`web/src/avatar/slime.ts`): sin archivo de
+  modelo, sin descarga y sin licencia de terceros.
+- **El estado se ve en el cuerpo:** conectando = dormido con «z» flotando; listo = despierta con un
+  saltito; escuchando = orejas arriba e inclinado; pensando = mira de lado y tres puntos; hablando =
+  rebota al ritmo de las sílabas; error = se desinfla, orejas caídas y ceño. Tocarlo le hace cosquillas.
+- **Boca con visemas grande a propósito** (mismo `LipSync`: cinco vocales), para que el movimiento de
+  labios se pueda seguir desde lejos.
+- **Carga más liviana:** la vista por defecto ya no descarga el modelo VRM de 13 MB; el código del
+  slime son 21 KB. Medido en el build de producción.
+
+### Changed — Avatar
+- `web/src/avatar/index.ts` pasa a ser la entrada: elige personaje (`slime` por defecto, `humano` con
+  `?personaje=humano`, recordado en el navegador) y carga cada uno en su propio paquete. El avatar VRM
+  se movió a `human.ts` y el contrato compartido a `types.ts`. `avatar-host.ts` no cambió.
+- Verificado en Edge (escritorio y celular, build de producción): flujo real de estados con el motor
+  simulado, «Detener» sin desmontar el avatar, personaje humano, `prefers-reduced-motion`, 0 errores de
+  consola; `astro check` 0 errores; 200 pruebas de front.
+
 ### Fixed — producción (2026-10-09 ≈ 15:25)
 - **Texto del sistema mostrado como si lo dijera el usuario e interrupciones:** la pista de contexto
   del transcriptor de OpenAI (añadida en `3f14414`) se devolvía como transcripción ante ruido o silencio
