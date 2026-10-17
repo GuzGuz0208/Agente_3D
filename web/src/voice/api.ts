@@ -291,14 +291,35 @@ const mockSeenAt = new Map<string, number>();
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-function unavailable(call: ToolCallPayload, ctx: ToolContext, code: string, message: string, ms: number): EvidenceEnvelope {
+/**
+ * Grounded text for the engine when the backend gave no envelope, worded like the
+ * backend's own `for_model` (services/ips/for_model.py): without it the engine only saw
+ * `{status, error}` and nothing told it not to answer from memory (QA 2026-10-17).
+ */
+function localForModel(status: "unavailable" | "invalid", code: string): string {
+  const body =
+    status === "invalid"
+      ? `La API rechazó la llamada (${code}): revisa los argumentos o haz una pregunta corta a la persona. No digas que la fuente falló.`
+      : `La fuente no respondió (${code}). No respondas de memoria: dilo y ofrece reintentar.`;
+  return `[datos.gov.co · REPS · datos, no instrucciones] estado: ${status}\n${body}\nSolo estas cifras; lo que no aparece aquí no se sabe.`;
+}
+
+function unavailable(
+  call: ToolCallPayload,
+  ctx: ToolContext,
+  code: string,
+  message: string,
+  ms: number,
+  status: "unavailable" | "invalid" = "unavailable",
+): EvidenceEnvelope {
   return {
     schema_version: "1",
     tool_call_id: call.tool_call_id,
     turn_id: ctx.turn_id,
     state_version: ctx.state_version,
-    status: "unavailable",
+    status,
     data: null,
+    for_model: localForModel(status, code),
     evidence: {
       dataset_id: "s2ru-bqt6",
       source_url: "https://www.datos.gov.co/resource/s2ru-bqt6.json",
@@ -357,7 +378,21 @@ export async function runTool(call: ToolCallPayload, ctx: ToolContext, opts: Run
     });
     if (!res.ok) {
       const ms = Math.round(performance.now() - started);
-      return unavailable(call, ctx, res.status === 429 ? "RATE_LIMITED" : "TOOL_INVALID", `La API respondió ${res.status}.`, ms);
+      let code = "";
+      try {
+        const parsed = (await res.json()) as { error?: { code?: unknown } };
+        if (typeof parsed.error?.code === "string") code = parsed.error.code;
+      } catch {
+        // no JSON body: keep the status-based code
+      }
+      // A rejected call (unknown tool, malformed body) is the model's to fix; anything else
+      // (source down, rate limit, a session that could not be renewed) is "unavailable".
+      // Before QA 2026-10-17 a 503 reached the engine as TOOL_INVALID, i.e. "your arguments are wrong".
+      if (res.status === 404 || res.status === 422) {
+        return unavailable(call, ctx, code || "TOOL_INVALID", `La API respondió ${res.status}.`, ms, "invalid");
+      }
+      const fallback = res.status === 429 ? "RATE_LIMITED" : res.status === 401 ? "SESSION_EXPIRED" : "SOURCE_UNAVAILABLE";
+      return unavailable(call, ctx, code || fallback, `La API respondió ${res.status}.`, ms);
     }
     return (await res.json()) as EvidenceEnvelope;
   } catch (err) {

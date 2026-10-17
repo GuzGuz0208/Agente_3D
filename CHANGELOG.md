@@ -5,6 +5,24 @@ Este proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+### Fixed — Validación previa a publicar (2026-10-17)
+- **Sesión vencida:** el front renueva el token y repite la llamada una vez (antes llegaba al agente como
+  «la fuente no respondió»).
+- **Errores de herramientas con su motivo real:** un 503 de la fuente ya no llega al motor como
+  «argumentos inválidos»; 5xx/429 → `unavailable` con código real y un `for_model` que prohíbe responder de
+  memoria; 404/422 → `invalid`.
+- **`/health`:** la sonda de la fuente cabe en el plazo del navegador (3 s), así el catálogo de
+  herramientas y el motor por defecto llegan aunque datos.gov.co vaya lento.
+- **Subtítulos** solo en modo juego, con X y botón para volver a encenderlos (ya no tapan el selector del
+  slime gato); **«¿Cómo funciona?»** como pastilla pastel del tema.
+- Validado en vivo con Gemini: las 9 herramientas, cifras iguales a la evidencia, fuente caída o lenta,
+  argumento inválido, municipio homónimo, sesión vencida, analizador caído y motor caído con cambio a
+  OpenAI. Front validado en producción (3 temas × 3 páginas × escritorio y Android emulado, contraste AA).
+
+### Added — Despliegue en Vercel desde el fork
+- `vercel.json`: cabecera `Permissions-Policy` que permite micrófono, sensores y pantalla completa al propio
+  origen. `docs/11-despliegue.md` §11: pasos de despliegue de prueba, variables y cambio a OpenAI.
+
 ### Added — Temas por avatar, slime gato y ánimo visible (rama `feat/slime-rosado`, 2026-10-16)
 - **Un tema de color por personaje** (`web/src/scripts/theme.ts`, `tokens.css`): `rosa` (slime rosado),
   `gato` (gris lavanda con el rosa de sus orejas) y `humano` (Avatar 3D: carbón con acento carmesí). Al

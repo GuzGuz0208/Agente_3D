@@ -168,7 +168,10 @@ def create_app(build: Callable[[], VoiceContainer] | None = None) -> FastAPI:
         if cached is None or time.monotonic() - cached[0] > ttl:
             t0 = time.perf_counter()
             try:  # datos.gov.co is free; no paid provider is called here (docs/03)
-                await c.dataset.query("SELECT count(*) AS rows", deadline=Deadline(4.5))
+                # 3 s, not 4.5: the browser gives /health 4 s (web/src/voice/api.ts). A slower probe
+                # made the browser drop the whole answer -- tool catalogue, default engine, voices --
+                # instead of reading "degraded" (QA 2026-10-17).
+                await c.dataset.query("SELECT count(*) AS rows", deadline=Deadline(3.0))
                 source = {"ok": True, "ms": int((time.perf_counter() - t0) * 1000)}
             except DatasetUnavailable as exc:
                 source = {"ok": False, "error": exc.code}

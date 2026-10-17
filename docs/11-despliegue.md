@@ -42,7 +42,7 @@ sin CORS). **No hay WebSocket propio, base de datos ni modelo de embeddings**: e
 | `CARTESIA_VOICE_ID` | api | Identificador de la voz clonada del equipo; el backend lo entrega al navegador junto al token. No es un secreto, pero se configura aquí para no fijarlo en el código. Requerida si hay `CARTESIA_API_KEY` |
 | `DATOS_GOV_APP_TOKEN` | api | Token SODA3 (opcional; si es inválido se descarta, [09](09-datos-en-vivo-datos-gov-co.md) §2) |
 | `SESSION_SIGNING_KEY` | api | Firma de la sesión anónima (32 bytes aleatorios) |
-| `ALLOWED_ORIGINS` | api | Origen(es) del web para CORS |
+| `ALLOWED_ORIGINS` | api | Origen(es) del web para CORS. **Con Vercel Services no hace falta** (web y api comparten dominio); solo con dos proyectos o el contenedor |
 | `LANGSMITH_API_KEY`, `LANGSMITH_TRACING` | api | Trazas y feedback (opcional) |
 | `VOICE_DEFAULT_ENGINE` | api | Motor que la interfaz elige al cargar (`GET /health` → `default_engine`). Por omisión **`gemini`**, para que las pruebas no gasten la cuota de OpenAI. **El día de la demo final: `openai`** (vuelve también la voz clonada por defecto, si `CARTESIA_API_KEY` está). El selector de /admin sigue ofreciendo los dos motores |
 | `REALTIME_NOISE_REDUCTION` | api | Reducción de ruido de entrada de OpenAI. Por omisión `far_field` (micrófono del PC o portátil); `near_field` con diadema o audífonos; vacío la apaga |
@@ -60,7 +60,7 @@ Lectura de variables **solo** en `src/config.py` (R-05); `LANGSMITH_*` las lee l
 
 - **Dependencias mínimas** (sin `torch`, `sentence-transformers` ni `psycopg`): `fastapi`, `httpx`, `pydantic-settings`, `pyyaml`, `langgraph`, `langchain-core` y `uvicorn` (solo contenedor/local). El app de voz llama a Gemini, OpenAI y Cartesia con `httpx`: **no** usa `langchain-google-genai` ni `langchain-openai`. Medido el 2026-10-09: `site-packages` de ~63 MB (límite 500 MB) e importación de `api.app_voice` en ~1 s.
 - **Dónde está cada cosa:** `requirements.txt` = runtime mínimo de Reto 01; `requirements-dev.txt` = `-r requirements.txt` + pruebas + scripts de medición (desarrollo: `pip install -r requirements-dev.txt`). `pyproject.toml` repite el runtime mínimo como lista **estática** en `[project].dependencies` porque Vercel, si hay `pyproject.toml` y `requirements.txt`, instala desde `pyproject.toml` (con `uv`). **Las dos listas se mantienen iguales.**
-- **Entrypoint:** `[tool.vercel] entrypoint = "src.api.app_voice:app"` en `pyproject.toml` (mecanismo documentado por Vercel). `vercel.json` fija `regions: ["iad1"]`, `maxDuration` 60 s y `excludeFiles` (`tests/`, `docs/`, `web/`, `scripts/`, `spikes/`, `.venv*`, `.env*`); `.vercelignore` evita subir `.env` y lo mismo con `vercel deploy`. El bundle incluye `src/`, `config/` y `data/lexicon.json` (las rutas salen de `src/config.py`, relativas a la raíz).
+- **Entrypoint:** `[tool.vercel] entrypoint = "src.api.app_voice:app"` en `pyproject.toml` (mecanismo documentado por Vercel). `vercel.json` fija `regions: ["iad1"]`, `maxDuration` 60 s y `excludeFiles` (`tests/`, `docs/`, `web/`, `scripts/`, `spikes/`, `.venv*`, `.env*`); `.vercelignore` evita subir `.env` y lo mismo con `vercel deploy`. El bundle incluye `src/`, `config/` y `data/lexicon.json` (las rutas salen de `src/config.py`, relativas a la raíz). Cabecera global `Permissions-Policy` en `vercel.json`: micrófono, acelerómetro, giroscopio, magnetómetro y pantalla completa permitidos para el propio origen (modo juego en el celular); `vibrate` no es una directiva que Chrome reconozca y no hace falta.
 - **Despliegue del proyecto `api` (carril B, desde la raíz del worktree):**
   ```bash
   npx vercel login
@@ -152,7 +152,46 @@ concurrencia, la interfaz degrada sola a la voz del motor. El navegador solo rec
 10 min con alcance de síntesis; `/speech/session` tiene los mismos límites de tasa. Revisar el
 consumo en la consola de Cartesia tras los ensayos y rotar la clave al terminar (§9).
 
-## 11. Fase 2
+## 11. Despliegue de prueba en Vercel desde el fork
+
+Un solo proyecto (Services, §1) importado desde `GuzGuz0208/Agente_3D` (público). Simulado en
+local el 2026-10-17: web compilada con `PUBLIC_API_URL=/api` detrás de un proxy con las reglas de
+`vercel.json`; `/api/health` y una pregunta escrita con Gemini respondieron sin CORS.
+
+1. vercel.com → **Add New… → Project** → importar `GuzGuz0208/Agente_3D` (si no aparece: *Adjust GitHub App Permissions* y dar acceso al repo).
+2. **Framework Preset: Services** (lo detecta por `services` en `vercel.json`). **Root Directory: `./`** (no `web/`). No tocar build ni output: cada servicio los toma de `vercel.json`.
+3. **Environment Variables** (antes de *Deploy*, para Production y Preview): tabla de abajo.
+4. **Deploy.** Rama de producción: `main` (*Settings → Git → Production Branch*). Cada rama empujada sale como *preview*.
+5. Los *previews* llevan **Vercel Authentication** por omisión: en el Android hay que iniciar sesión en Vercel con la cuenta dueña, o apagarla un rato en *Settings → Deployment Protection*. El dominio de producción (`<proyecto>.vercel.app`) es público.
+
+| Variable | Obligatoria | Valor |
+|---|---|---|
+| `GEMINI_API_KEY` | Sí | secreto |
+| `SESSION_SIGNING_KEY` | Sí (sin ella la API no arranca) | 32 bytes nuevos en hex (comando abajo) |
+| `VOICE_DEFAULT_ENGINE` | No | `gemini` (día de la demo: `openai`) |
+| `GEMINI_ACTIVITY_HANDLING` | No | `NO_INTERRUPTION` |
+| `REALTIME_NOISE_REDUCTION` | No | `far_field` (solo OpenAI; `near_field` con audífonos) |
+| `DATOS_GOV_APP_TOKEN` | No | secreto (sin él, consultas anónimas) |
+| `OPENAI_API_KEY` | Día de la demo | secreto |
+| `CARTESIA_API_KEY`, `CARTESIA_VOICE_ID` | Día de la demo (voz clonada) | secreto / id de la voz |
+| `ALLOWED_ORIGINS`, `PUBLIC_API_URL`, `API_PATH_PREFIX` | No: **no definir** | mismo dominio; la web se compila con `/api` |
+
+```powershell
+# SESSION_SIGNING_KEY nueva (PowerShell 5.1 o 7); no reutilizar la del .env local
+$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); -join ($b | ForEach-Object { $_.ToString('x2') })
+```
+
+**Verificar:** `Invoke-RestMethod https://<dominio>/api/health | ConvertTo-Json -Depth 4` →
+`status: ok`, `default_engine: gemini`, `engines.gemini.configured: true`, `source.ok: true`. Luego
+`https://<dominio>/consola/` en Chrome del Android: pregunta escrita, después «Usar mi voz».
+Un 500 en `/api/health` casi siempre es `SESSION_SIGNING_KEY` ausente o corta (ver *Logs* del proyecto).
+
+**Pasar a OpenAI el día de la demo:** *Settings → Environment Variables* → `VOICE_DEFAULT_ENGINE` =
+`openai` (y `OPENAI_API_KEY`, `CARTESIA_*` presentes) → *Deployments* → último de producción → **⋯ →
+Redeploy** (las variables solo aplican a despliegues nuevos). Comprobar en `/api/health`:
+`default_engine: openai` y `engines.openai.configured: true`. Volver: `gemini` + *Redeploy*, o *Instant Rollback*.
+
+## 12. Fase 2
 
 La automatización del despliegue del contenedor y Twilio Media Streams (μ-law 8 kHz, un track por
 hablante) quedan en el backlog ([13](13-diferenciadores-y-backlog.md), B-08 y B-09).

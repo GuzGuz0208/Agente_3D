@@ -60,6 +60,36 @@ describe("sesión vencida", () => {
     const api = await loadApi();
     const env = await api.runTool(call, ctx);
     expect(env.status).toBe("unavailable");
+    expect(env.error?.code).toBe("SESSION_EXPIRED");
     expect(seen.filter((s) => s.url.includes("/tools/"))).toHaveLength(2);
+  });
+});
+
+describe("respuesta de error sin sobre (QA 2026-10-17)", () => {
+  function failing(status: number, body: unknown): typeof fetch {
+    return (async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/sessions")) return new Response(JSON.stringify({ token: "tok" }), { status: 201 });
+      return new Response(JSON.stringify(body), { status });
+    }) as typeof fetch;
+  }
+
+  it("un 503 de la fuente llega al motor como «no disponible», nunca como argumentos inválidos", async () => {
+    vi.stubGlobal("fetch", failing(503, { error: { code: "SOURCE_UNAVAILABLE", message: "x", retryable: true } }));
+    const api = await loadApi();
+    const env = await api.runTool(call, ctx);
+    expect(env.status).toBe("unavailable");
+    expect(env.error?.code).toBe("SOURCE_UNAVAILABLE");
+    expect(env.data).toBeNull();
+    // The engine gets the grounding rule even without a backend envelope.
+    expect(env.for_model).toMatch(/No respondas de memoria/);
+  });
+
+  it("un 422 es un error de la llamada: estado «invalid», para que el modelo la corrija", async () => {
+    vi.stubGlobal("fetch", failing(422, { error: { code: "INVALID_INPUT", message: "args: entrada inválida" } }));
+    const api = await loadApi();
+    const env = await api.runTool(call, ctx);
+    expect(env.status).toBe("invalid");
+    expect(env.error?.code).toBe("INVALID_INPUT");
+    expect(env.for_model).toMatch(/No digas que la fuente falló/);
   });
 });
