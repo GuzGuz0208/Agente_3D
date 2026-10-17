@@ -37,6 +37,7 @@
 import ChevronUp from "@lucide/astro/icons/chevron-up";
 import CircleDot from "@lucide/astro/icons/circle-dot";
 import Gamepad2 from "@lucide/astro/icons/gamepad-2";
+import Captions from "@lucide/astro/icons/captions";
 import Maximize from "@lucide/astro/icons/maximize";
 import Mic from "@lucide/astro/icons/mic";
 import Rotate3d from "@lucide/astro/icons/rotate-3d";
@@ -66,6 +67,7 @@ import Orb from "./Orb.astro";
         <Gamepad2 aria-hidden="true" /><span class="tool-label">Jugar</span>
       </button>
       <button type="button" class="tool tool-mute" data-testid="mute-button-stage" data-mute disabled aria-label="Silenciar" title="Silenciar (Esc)"><VolumeX aria-hidden="true" /></button>
+      <button type="button" class="tool tool-subs" id="btn-subtitles" data-testid="subtitles-button" aria-pressed="true" aria-label="Subtítulos" title="Mostrar u ocultar los subtítulos"><Captions aria-hidden="true" /></button>
       <button type="button" class="tool" id="btn-fullscreen" aria-label="Pantalla completa" title="Pantalla completa"><Maximize aria-hidden="true" /></button>
       <button type="button" class="tool tool-cam" id="btn-camera" aria-label="Reiniciar cámara" title="Reiniciar cámara"><Rotate3d aria-hidden="true" /></button>
       <button type="button" class="tool tool-cam" id="btn-zoom-in" aria-label="Acercar" title="Acercar"><ZoomIn aria-hidden="true" /></button>
@@ -119,7 +121,11 @@ import Orb from "./Orb.astro";
       <span><strong>Preparando la voz…</strong><span class="wait-more"> Espera unos segundos; te aviso cuando puedas hablar.</span></span>
     </p>
 
-    <p class="subtitle" id="subtitle" data-testid="subtitle" aria-hidden="true" hidden></p>
+    <!-- Shown only while playing (the chat carries the words otherwise); can be closed and turned back on. -->
+    <div class="subtitle" id="subtitle" data-testid="subtitle" hidden>
+      <p class="subtitle-text" id="subtitle-text" aria-hidden="true"></p>
+      <button type="button" class="subtitle-close" id="subtitle-close" data-testid="subtitle-close" aria-label="Ocultar subtítulos" title="Ocultar subtítulos"><X aria-hidden="true" /></button>
+    </div>
     <!-- Screen readers get finished utterances only, never every partial. -->
     <div class="sr-only" id="subtitle-live" aria-live="polite" aria-atomic="true"></div>
 
@@ -226,7 +232,34 @@ import Orb from "./Orb.astro";
     const toggle = byId<HTMLButtonElement>("btn-toggle");
     const mutes = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-mute]"));
     const subtitle = byId("subtitle");
+    const subtitleText = byId("subtitle-text");
     const live = byId("subtitle-live");
+
+    // Subtitles: only in play mode, on by default there; the choice is remembered in this browser.
+    const SUBTITLES_KEY = "ips.subtitles";
+    const subtitlesButton = byId<HTMLButtonElement>("btn-subtitles");
+    const setSubtitles = (on: boolean, remember: boolean): void => {
+      if (stage) stage.dataset.subtitles = on ? "on" : "off";
+      subtitlesButton?.setAttribute("aria-pressed", String(on));
+      if (!remember) return;
+      try {
+        localStorage.setItem(SUBTITLES_KEY, on ? "on" : "off");
+      } catch {
+        // Private mode: the choice lasts for this page only.
+      }
+    };
+    let subtitlesOn = true;
+    try {
+      subtitlesOn = localStorage.getItem(SUBTITLES_KEY) !== "off";
+    } catch {
+      // Keep the default.
+    }
+    setSubtitles(subtitlesOn, false);
+    subtitlesButton?.addEventListener("click", () => setSubtitles(stage?.dataset.subtitles !== "on", true));
+    byId("subtitle-close")?.addEventListener("click", () => {
+      setSubtitles(false, true);
+      subtitlesButton?.focus();
+    });
     let zoom = 1;
     let announced = "";
 
@@ -601,7 +634,7 @@ import Orb from "./Orb.astro";
       subtitle.hidden = !last;
       if (!last) {
         // After «Reiniciar» nothing of the previous conversation may linger, on screen or for screen readers.
-        subtitle.textContent = "";
+        if (subtitleText) subtitleText.textContent = "";
         if (live) live.textContent = "";
         announced = "";
         return;
@@ -609,7 +642,7 @@ import Orb from "./Orb.astro";
       const who = last.role === "agent" ? "Asistente" : "Tú";
       const heard = last.delivered_text ?? last.correction?.text ?? last.text;
       subtitle.className = `subtitle role-${last.role}${last.final ? "" : " partial"}`;
-      subtitle.innerHTML = `<b>${who}</b> ${esc(tail(heard))}`;
+      if (subtitleText) subtitleText.innerHTML = `<b>${who}</b> ${esc(tail(heard))}`;
       if (last.final && live && announced !== last.id) {
         announced = last.id;
         live.textContent = `${who}: ${heard}`;
@@ -1035,6 +1068,62 @@ import Orb from "./Orb.astro";
     backdrop-filter: blur(6px);
   }
 
+  .subtitle {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--s-2);
+  }
+
+  .subtitle-text {
+    min-width: 0;
+  }
+
+  .subtitle-close {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    margin: calc(var(--s-1) * -1) calc(var(--s-2) * -1) 0 0;
+    border: 0;
+    border-radius: var(--r-pill);
+    background: transparent;
+    color: var(--on-dark);
+    opacity: 0.8;
+    pointer-events: auto;
+    cursor: pointer;
+  }
+
+  .subtitle-close:hover {
+    opacity: 1;
+    background: color-mix(in oklab, var(--on-dark) 16%, transparent);
+  }
+
+  .subtitle-close :global(svg) {
+    width: 1.1rem;
+    height: 1.1rem;
+  }
+
+  /* Outside play mode the chat shows every word: no caption over the character or its controls. */
+  #avatar-stage:not([data-play="on"]) .subtitle,
+  #avatar-stage[data-play="on"][data-subtitles="off"] .subtitle,
+  #avatar-stage[data-play="on"] .subtitle[hidden] {
+    display: none;
+  }
+
+  /* The captions toggle only makes sense where captions exist: in play mode. */
+  .tool-subs {
+    display: none;
+  }
+
+  #avatar-stage[data-play="on"] .tool-subs {
+    display: grid;
+  }
+
+  .tool-subs[aria-pressed="false"] {
+    opacity: 0.65;
+  }
+
   .subtitle :global(b) {
     display: block;
     font-size: var(--t-xs);
@@ -1327,7 +1416,7 @@ import Orb from "./Orb.astro";
   /* The slime keeps talking while you play. The slime rests on the bar at the bottom, so the caption
      goes up top, under the badge (just below the hint while that is shown); it lets drags through. */
   #avatar-stage[data-play="on"] .subtitle {
-    display: block;
+    display: flex;
     top: calc(var(--s-3) + var(--tap) + var(--s-3) + env(safe-area-inset-top, 0px));
     bottom: auto;
     pointer-events: none;

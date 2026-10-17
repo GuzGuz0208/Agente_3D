@@ -140,17 +140,21 @@ const nav = [
     flex: none;
     min-height: var(--tap);
     margin-left: var(--s-2);
-    padding: 0 var(--s-3);
-    border: 0;
+    padding: 0 var(--s-4) 0 var(--s-3);
+    /* A pastel pill in the theme's own soft tone: easy to find, calmer than the call to action. */
+    border: 1px solid color-mix(in oklab, var(--primary) 28%, var(--primary-soft));
     border-radius: var(--r-pill);
-    background: transparent;
-    color: var(--ink-2);
+    background: var(--primary-soft);
+    color: var(--primary-ink);
     font-size: var(--t-sm);
-    font-weight: 600;
+    font-weight: 650;
     white-space: nowrap;
+    box-shadow: 0 1px 2px color-mix(in oklab, var(--primary) 12%, transparent);
     transition:
-      background-color 0.15s,
-      color 0.15s;
+      background-color 0.2s,
+      border-color 0.2s,
+      box-shadow 0.2s,
+      color 0.2s;
   }
 
   .help::before {
@@ -164,8 +168,10 @@ const nav = [
   }
 
   .help:hover {
-    background: var(--subtle-2);
-    color: var(--ink);
+    border-color: color-mix(in oklab, var(--primary) 45%, var(--primary-soft));
+    background: color-mix(in oklab, var(--primary) 10%, var(--primary-soft));
+    color: var(--primary-ink);
+    box-shadow: 0 2px 6px color-mix(in oklab, var(--primary) 18%, transparent);
   }
 
   .help :global(svg) {
