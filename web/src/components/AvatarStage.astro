@@ -319,6 +319,8 @@ import Orb from "./Orb.astro";
       clearTimeout(playNoteTimer);
       playNote.textContent = text;
       playNote.dataset.show = "true";
+      // The caption steps down by this much while the hint is shown.
+      stage?.style.setProperty("--play-note-h", `${playNote.offsetHeight}px`);
       playNoteTimer = setTimeout(() => (playNote.dataset.show = "false"), PLAY_NOTE_MS);
     };
 
@@ -329,6 +331,8 @@ import Orb from "./Orb.astro";
       zoomBeforePlay = zoom;
       setZoom(1);
       play = startPlay(el, avatar, {
+        // The slime rests above «Salir del juego» / «Hablar», never under them.
+        keepClear: el.querySelector<HTMLElement>(".play-bar"),
         onSensor: (status, { reducedMotion }) => showPlayNote(reducedMotion ? `${PLAY_NOTE[status]} ${PLAY_NOTE_GENTLE}` : PLAY_NOTE[status]),
         onEnd: () => {
           play = null;
@@ -337,6 +341,7 @@ import Orb from "./Orb.astro";
             playNote.dataset.show = "false";
             playNote.textContent = "";
           }
+          el.style.removeProperty("--play-note-h");
           setZoom(zoomBeforePlay);
           el.removeAttribute("tabindex");
           if (playButton?.isConnected) playButton.focus({ preventScroll: true });
@@ -641,6 +646,19 @@ import Orb from "./Orb.astro";
     background: var(--glass);
     box-shadow: var(--shadow-float);
     backdrop-filter: blur(6px);
+    transition: opacity 0.25s var(--ease);
+  }
+
+  /* From the orb to the slime, the slime hops in along the bottom edge: the switch steps aside
+     until the orb is eaten (avatar-host.ts removes the mark). Never from under a keyboard focus. */
+  #avatar-stage[data-entrance="eat"] .stage-mode {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #avatar-stage[data-entrance="eat"] .stage-mode:has(:focus-visible) {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .stage-mode button {
@@ -846,7 +864,7 @@ import Orb from "./Orb.astro";
     }
   }
 
-  /* Narrow stage: the two modes keep their icons and accessible names, not their labels. */
+  /* Narrow stage: the three modes keep their icons and accessible names, not their labels. */
   @container stage (max-width: 460px) {
     .stage-mode button {
       padding: 0;
@@ -858,6 +876,14 @@ import Orb from "./Orb.astro";
       height: 1px;
       overflow: hidden;
       clip-path: inset(50%);
+    }
+  }
+
+  /* Small phone stage: the row of three would cover the slime's foot, so it stands along the left
+     edge instead (below the badge; a shorter stage keeps the row). */
+  @container stage (max-width: 460px) and (max-height: 320px) and (min-height: 230px) {
+    .stage-mode {
+      flex-direction: column;
     }
   }
 
@@ -944,11 +970,18 @@ import Orb from "./Orb.astro";
     display: none;
   }
 
-  /* The slime keeps talking while you play: the caption sits over the bar, and lets drags through. */
+  /* The slime keeps talking while you play. The slime rests on the bar at the bottom, so the caption
+     goes up top, under the badge (just below the hint while that is shown); it lets drags through. */
   #avatar-stage[data-play="on"] .subtitle {
     display: block;
-    bottom: calc(var(--s-4) + var(--play-bar) + var(--s-3) + env(safe-area-inset-bottom, 0px));
+    top: calc(var(--s-3) + var(--tap) + var(--s-3) + env(safe-area-inset-top, 0px));
+    bottom: auto;
     pointer-events: none;
+    transition: translate 0.3s var(--ease);
+  }
+
+  #avatar-stage[data-play="on"]:has(.play-note[data-show="true"]) .subtitle {
+    translate: -50% calc(var(--play-note-h, 0px) + var(--s-2));
   }
 
   .play-note {
@@ -984,12 +1017,17 @@ import Orb from "./Orb.astro";
     opacity: 1;
   }
 
-  /* Phone on its side: the hint goes up between the badge and «Silenciar», clear of the slime. */
+  /* Phone on its side: the hint goes up between the badge and «Silenciar», clear of the slime;
+     the caption stays under them. */
   @container stage (max-height: 480px) and (min-width: 720px) {
     .play-note {
       top: calc(var(--s-3) + env(safe-area-inset-top, 0px));
       max-width: min(calc(100% - 26rem), 30rem);
       padding-block: var(--s-2);
+    }
+
+    #avatar-stage[data-play="on"]:has(.play-note[data-show="true"]) .subtitle {
+      translate: -50% 0;
     }
   }
 

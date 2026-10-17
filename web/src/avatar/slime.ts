@@ -41,13 +41,16 @@
  * Play mode (`setPlayMode`): the camera pulls back and the body moves freely in
  * the frame (`physics.ts`): gravity from `setTilt`, soft hits against the edges
  * of what is visible, a splash of goo and an `onImpact` per hit; it can be
- * caught, dragged and thrown. Off again, it springs back to its spot.
+ * caught, dragged and thrown. Off again, it springs back to its spot. The
+ * container may keep the bottom of the frame for its own controls with the CSS
+ * custom property `--avatar-clear-bottom` (CSS pixels): the floor is raised by it.
  *
  * `eatOrb` is the entrance when the person switches from the orb to the slime:
  * it hops in from the left, lands beside the orb that is on screen (the page's
  * own orb, not a copy), looks at it and opens wide; the page then flies that orb
- * into its mouth (`onBite`), and it gulps, puffs its cheeks, looks pleased and
- * hops back to its spot (about two and a half seconds).
+ * into its mouth (`onBite`, which also says where the eyes are, so the orb can go
+ * round them), and it gulps, puffs its cheeks, looks pleased and hops back to its
+ * spot (about two and a half seconds).
  *
  * With `prefers-reduced-motion` all of this is reduced to the minimum: no trail,
  * a short shallow melt, no bounces or spins, and no entrance at all.
@@ -270,8 +273,8 @@ const IMPACT_GAP_MS = 70;
  * a hop back home.
  */
 const HOP_IN = [0, 0.38, 0.45, 0.88] as const;
-const BITE_AT = 1.05;
-const BITE_MS = 420;
+const BITE_AT = 0.98;
+const BITE_MS = 520;
 const SHUT_AT = BITE_AT + BITE_MS / 1000;
 const HOP_HOME = [1.95, 2.35] as const;
 const ENTRANCE_TIME = 2.6;
@@ -994,10 +997,8 @@ class Slime implements AvatarHandle {
     this.resetCamera();
     this.canvas.style.touchAction = on ? "none" : "pan-y";
     this.body.touching = 0;
-    if (on) {
-      this.measureVisible();
-      this.hop(0.4); // "let's play"
-    }
+    this.measureVisible(); // in play mode the container may keep the bottom edge for its controls
+    if (on) this.hop(0.4); // "let's play"
   }
 
   /**
@@ -1557,15 +1558,22 @@ class Slime implements AvatarHandle {
     this.goo?.layout();
   }
 
-  /** Which part of the canvas the person actually sees (its container clips it, a zoom may enlarge it). */
+  /**
+   * Which part of the canvas the person actually sees (its container clips it, a zoom may enlarge it),
+   * less the strip at the bottom that the container keeps for its controls in play mode
+   * (`--avatar-clear-bottom`, CSS pixels), so the body never rests under them.
+   */
   private measureVisible(): void {
     const rect = this.canvas.getBoundingClientRect();
     if (rect.width < 1 || rect.height < 1) return;
-    const parent = this.canvas.parentElement?.getBoundingClientRect();
+    const container = this.canvas.parentElement;
+    const parent = container?.getBoundingClientRect();
+    const keep = this.play && container ? Number.parseFloat(getComputedStyle(container).getPropertyValue("--avatar-clear-bottom")) : 0;
+    const clearBottom = Number.isFinite(keep) && keep > 0 ? keep : 0;
     const left = Math.max(rect.left, parent?.left ?? -Infinity, 0);
     const right = Math.min(rect.right, parent?.right ?? Infinity, window.innerWidth);
     const top = Math.max(rect.top, parent?.top ?? -Infinity, 0);
-    const bottom = Math.min(rect.bottom, parent?.bottom ?? Infinity, window.innerHeight);
+    const bottom = Math.min(rect.bottom, (parent?.bottom ?? window.innerHeight) - clearBottom, window.innerHeight);
     if (right - left < 8 || bottom - top < 8) {
       this.visibleNdc = { left: -1, right: 1, bottom: -1, top: 1 };
       return;
@@ -1992,8 +2000,18 @@ class Slime implements AvatarHandle {
     this.mouthAnchor.updateWorldMatrix(true, false);
     const centre = this.toClient(this.mouthAnchor.localToWorld(this.tmpVec.set(0, -0.1, 0.02)), { x: 0, y: 0 });
     const width = (0.17 * 1.3 * 2) / this.worldPerPixel();
+    // The eyes on screen: the iris centre, and its farthest edge (it is an upright oval).
+    const { eyeRX, eyeRY } = this.look.face;
+    const eyes = this.eyes.map((eye) => {
+      eye.shape.updateWorldMatrix(true, false);
+      const c = this.toClient(eye.shape.localToWorld(this.tmpVec.set(0, 0, 0)), { x: 0, y: 0 });
+      const top = this.toClient(eye.shape.localToWorld(this.tmpVec.set(0, eyeRY, 0)), { x: 0, y: 0 });
+      const side = this.toClient(eye.shape.localToWorld(this.tmpVec.set(eyeRX, 0, 0)), { x: 0, y: 0 });
+      const radius = Math.max(Math.hypot(top.x - c.x, top.y - c.y), Math.hypot(side.x - c.x, side.y - c.y));
+      return { x: c.x, y: c.y, radius };
+    });
     try {
-      e.onBite?.({ x: centre.x, y: centre.y, width, closesIn: Math.max(0, Math.round((SHUT_AT - this.eatT) * 1000)) });
+      e.onBite?.({ x: centre.x, y: centre.y, width, eyes, closesIn: Math.max(0, Math.round((SHUT_AT - this.eatT) * 1000)) });
     } catch (err) {
       console.warn("[slime] onBite failed", err);
     }

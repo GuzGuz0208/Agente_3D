@@ -62,7 +62,10 @@ export interface AvatarHandle {
   getDebugInfo?(): AvatarDebugInfo;
   /** Extra: face for the tone of the conversation; eases in, never snaps. */
   setExpression?(e: AvatarExpression): void;
-  /** Play mode: the body leaves its spot, rolls with `setTilt` and bounces off the edges of the frame. */
+  /**
+   * Play mode: the body leaves its spot, rolls with `setTilt` and bounces off the edges of the frame.
+   * The canvas container may set `--avatar-clear-bottom` (CSS pixels) to keep its controls clear.
+   */
   setPlayMode?(on: boolean): void;
   /** Gravity from the device tilt, in screen space: x to the right, y downwards, each -1..1. */
   setTilt?(x: number, y: number): void;
@@ -88,6 +91,8 @@ export interface OrbBite {
   x: number;
   y: number;
   width: number;
+  /** Where the eyes are (centre and radius): the orb goes round them, never over them. */
+  eyes?: ReadonlyArray<{ x: number; y: number; radius: number }>;
   /** Milliseconds until the mouth snaps shut. */
   closesIn: number;
 }

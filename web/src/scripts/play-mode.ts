@@ -13,7 +13,8 @@
  *
  * Contract with the character (src/avatar/types.ts):
  *   setPlayMode(on), setTilt(x, y) with x to the right and y downwards (-1..1),
- *   onImpact(listener(strength 0..1)) => unsubscribe.
+ *   onImpact(listener(strength 0..1)) => unsubscribe; and on the stage, the CSS
+ *   custom property `--avatar-clear-bottom` (px): the strip kept for the controls.
  */
 
 // ── Pure math ────────────────────────────────────────────────────────────────
@@ -222,6 +223,36 @@ export interface PlayOptions {
   onSensor?(status: SensorStatus, info: { reducedMotion: boolean }): void;
   /** Play mode ended, whoever ended it: the exit button, Esc, or leaving fullscreen. Called once. */
   onEnd?(): void;
+  /**
+   * Controls that stay on screen along the bottom of the stage while playing (the bar). The stage
+   * then carries `--avatar-clear-bottom` (px) with the strip they take, and the avatar stays above it.
+   */
+  keepClear?: HTMLElement | null;
+}
+
+/** CSS custom property on the stage: how much of its bottom edge (px) the avatar must leave free. */
+export const CLEAR_BOTTOM = "--avatar-clear-bottom";
+/** Room left between the controls and the avatar resting above them, px. */
+const CLEAR_GAP = 8;
+
+/** Keeps `CLEAR_BOTTOM` on the stage equal to the strip `controls` take at its bottom, as they move. Returns the undo. */
+function reserveBottom(stage: HTMLElement, controls: HTMLElement): () => void {
+  const measure = (): void => {
+    const frame = stage.getBoundingClientRect();
+    const box = controls.getBoundingClientRect();
+    const strip = box.height > 0 ? Math.max(0, Math.round(frame.bottom - box.top + CLEAR_GAP)) : 0;
+    stage.style.setProperty(CLEAR_BOTTOM, `${strip}px`);
+  };
+  measure();
+  const observer = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
+  observer?.observe(stage);
+  observer?.observe(controls);
+  window.addEventListener("resize", measure);
+  return () => {
+    observer?.disconnect();
+    window.removeEventListener("resize", measure);
+    stage.style.removeProperty(CLEAR_BOTTOM);
+  };
 }
 
 export interface PlaySession {
@@ -412,6 +443,12 @@ export function startPlay(stage: HTMLElement, target: PlayTarget, options: PlayO
   sent = initial;
   safely(() => target.setTilt(initial.x, initial.y));
 
+  // The strip for the bar is kept only once the stage fills the screen: on the small stage it would
+  // put the floor above the resting avatar, and the avatar would be shot up into the air.
+  const keepClear = (): void => {
+    if (options.keepClear) undos.push(reserveBottom(stage, options.keepClear));
+  };
+
   void fullscreen.then((ok) => {
     if (!active) {
       // Ended before the browser answered: undo what it just granted.
@@ -420,11 +457,13 @@ export function startPlay(stage: HTMLElement, target: PlayTarget, options: PlayO
     }
     if (!ok) {
       setScreen("pseudo");
+      keepClear();
       return;
     }
     inNative = true;
     ownsFullscreen = !alreadyFullscreen;
     setScreen("native");
+    keepClear();
     if (lockOrientation()) undos.push(() => safely(() => screen.orientation.unlock()));
   });
 

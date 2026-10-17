@@ -76,9 +76,11 @@ const STEPS: Record<string, Step[]> = {
     },
     {
       anchors: [tid("play-button")],
+      // Only the slime can play: with the animated avatar (or the orb, or while it loads) the
+      // button is hidden, and counting the step would make the count jump from 2 to 4.
       when: () => {
-        const stage = q("#avatar-stage");
-        return stage?.dataset.avatar === "ready" && stage.dataset.avatarEnabled !== "false";
+        const play = q(tid("play-button"));
+        return play !== null && isVisible(play);
       },
       title: "Jugar con el slime",
       text: "Pulsa el control de juego y el slime ocupa toda la pantalla. Inclina el celular para que ruede y choque con los bordes, o arrástralo con el dedo. Puedes seguir hablando con él; para volver, pulsa «Salir del juego».",
