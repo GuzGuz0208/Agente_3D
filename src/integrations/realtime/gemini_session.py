@@ -33,8 +33,10 @@ class GeminiLiveSession:
     def __init__(self, *, api_key: str, model: str, voice: str, ttl_s: int = 1800,
                  silence_duration_ms: int | None = None, prefix_padding_ms: int | None = None,
                  start_sensitivity: str | None = "START_SENSITIVITY_LOW",
+                 activity_handling: str | None = "NO_INTERRUPTION",
                  transport: httpx.AsyncBaseTransport | None = None) -> None:
         self._start_sensitivity = start_sensitivity
+        self._activity_handling = activity_handling
         self.model = model
         self._key = api_key
         self._voice = voice
@@ -68,6 +70,7 @@ class GeminiLiveSession:
                 "sessionResumption": {}, "contextWindowCompression": {"slidingWindow": {}},
             },
         }
+        realtime_input: dict[str, object] = {}
         if self._silence_ms is not None:
             # Faster end-of-speech detection (same knob as OpenAI's silence_duration_ms).
             detection = {
@@ -78,7 +81,13 @@ class GeminiLiveSession:
             if self._start_sensitivity:
                 # Low start sensitivity: ambient noise should not count as the user speaking.
                 detection["startOfSpeechSensitivity"] = self._start_sensitivity
-            body["bidiGenerateContentSetup"]["realtimeInputConfig"] = {"automaticActivityDetection": detection}
+            realtime_input["automaticActivityDetection"] = detection
+        if self._activity_handling:
+            # NO_INTERRUPTION: the server keeps talking whatever it hears; the browser decides
+            # (1-second rule) and cuts the generation with a client content message (docs/08 section 6).
+            realtime_input["activityHandling"] = self._activity_handling
+        if realtime_input:
+            body["bidiGenerateContentSetup"]["realtimeInputConfig"] = realtime_input
         try:
             async with httpx.AsyncClient(transport=self._transport, timeout=8.0) as c:
                 r = await c.post("https://generativelanguage.googleapis.com/v1alpha/auth_tokens",
@@ -98,6 +107,8 @@ class GeminiLiveSession:
             config={"audio": {"input": {"encoding": "pcm16", "sample_rate": 16000},
                               "output": {"encoding": "pcm16", "sample_rate": 24000}},
                     "voice": voice, "voice_mode": "engine", "turn_detection": {"type": "server"},
+                    # Who cuts the agent when the user talks over it (docs/08 section 6).
+                    "interruption": "client" if self._activity_handling == "NO_INTERRUPTION" else "server",
                     "setup": {"model": f"models/{self.model}"}},
             instructions_version=setup.instructions_version,
         )

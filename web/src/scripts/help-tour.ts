@@ -72,7 +72,7 @@ const STEPS: Record<string, Step[]> = {
     {
       anchors: [".stage-mode", tid("avatar-mode-3d")],
       title: "Slime, avatar 3D u orbe",
-      text: "Elige cómo quieres verlo: el slime, el avatar 3D animado o solo el orbe, que es el más liviano.",
+      text: "Elige cómo quieres verlo: el slime, el avatar 3D animado o solo el orbe, que es el más liviano. Pulsa «Slime» para escoger entre el rosado y el gato. Los colores de la página cambian con el personaje; con el orbe se quedan los que haya.",
     },
     {
       anchors: [tid("play-button")],

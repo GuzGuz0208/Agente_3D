@@ -128,36 +128,50 @@ const nav = [
     color: var(--ink);
   }
 
+  /* «¿Cómo funciona?» is an action, not a destination: a quiet text button set
+     apart from the two links by a hairline, with the icon in the theme's
+     primary so it is still found at a glance. No fill and no border, so it
+     never competes with the call to action on the page. */
   .help {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: var(--s-2);
     flex: none;
     min-height: var(--tap);
+    margin-left: var(--s-2);
     padding: 0 var(--s-3);
-    /* Pastel lilac: still findable at a glance, but it no longer competes with the rose call to action. */
-    border: 1px solid color-mix(in oklab, var(--violet-300) 70%, var(--rose-100));
+    border: 0;
     border-radius: var(--r-pill);
-    background: color-mix(in oklab, var(--violet-100) 65%, var(--rose-50));
-    color: var(--violet-900);
+    background: transparent;
+    color: var(--ink-2);
     font-size: var(--t-sm);
     font-weight: 600;
     white-space: nowrap;
     transition:
-      background-color 0.2s,
-      border-color 0.2s,
-      color 0.2s;
+      background-color 0.15s,
+      color 0.15s;
+  }
+
+  .help::before {
+    content: "";
+    position: absolute;
+    left: calc(var(--s-2) * -1);
+    top: 50%;
+    height: 1.5rem;
+    border-left: 1px solid var(--border-strong);
+    translate: 0 -50%;
   }
 
   .help:hover {
-    border-color: var(--violet-300);
-    background: var(--violet-100);
-    color: var(--violet-900);
+    background: var(--subtle-2);
+    color: var(--ink);
   }
 
   .help :global(svg) {
     width: 1.375rem;
     height: 1.375rem;
+    color: var(--primary);
   }
 
   nav a[aria-current="page"] {

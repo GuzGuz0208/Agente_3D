@@ -1,0 +1,330 @@
+---
+/**
+ * Mood pill of the conversation screen: the glow of the avatar stage said in
+ * words, with «¿Por qué?» (where the reading came from), «No es así» (take that
+ * reading back) and «Ocultar el ánimo» (switch it off in this browser).
+ *
+ * Logic and copy: scripts/mood-indicator.ts (bound from pages/consola.astro,
+ * right after the stage glow, so both stay in step). It sits outside the stage:
+ * under it on phones and tablets, above it on wide screens, next to the top
+ * edge where the glow is brightest.
+ */
+import ChevronDown from "@lucide/astro/icons/chevron-down";
+import Eye from "@lucide/astro/icons/eye";
+import EyeOff from "@lucide/astro/icons/eye-off";
+import Undo2 from "@lucide/astro/icons/undo-2";
+import { NO_READING_COPY } from "../scripts/mood-indicator";
+---
+
+<section class="mood" id="mood" data-testid="mood-indicator" data-status="none" data-key="neutral" data-hidden="false" aria-label="Tu ánimo, según el agente">
+  <div class="mood-bar">
+    <span class="mood-dot" aria-hidden="true"></span>
+    <p class="mood-text" aria-live="polite" aria-atomic="true">
+      <strong class="mood-headline" data-mood-headline data-testid="mood-headline">{NO_READING_COPY.headline}</strong>
+      <span class="mood-hint" data-mood-hint data-testid="mood-hint">{NO_READING_COPY.hint}</span>
+    </p>
+    <button type="button" class="mood-toggle" data-mood-toggle data-testid="mood-why" aria-expanded="false" aria-controls="mood-details">
+      <span data-mood-toggle-label>¿Qué es esto?</span>
+      <ChevronDown aria-hidden="true" class="mood-chevron" />
+    </button>
+  </div>
+
+  <div class="mood-details" id="mood-details" data-mood-details data-testid="mood-details" hidden>
+    <div class="mood-why" data-mood-why></div>
+    <div class="mood-actions">
+      <button type="button" class="btn" data-mood-dismiss data-testid="mood-dismiss" hidden>
+        <Undo2 aria-hidden="true" /> No es así
+      </button>
+      <button type="button" class="btn mood-quiet" data-mood-hide data-testid="mood-hide">
+        <EyeOff aria-hidden="true" /> Ocultar el ánimo
+      </button>
+    </div>
+  </div>
+
+  <button type="button" class="mood-show" data-mood-show data-testid="mood-show">
+    <Eye aria-hidden="true" /> Mostrar el ánimo
+  </button>
+</section>
+
+<style>
+  .mood {
+    /* Set by the script to the glow's #rrggbb; unset when neutral. */
+    container: mood / inline-size;
+    position: relative;
+    z-index: 4;
+    min-width: 0;
+  }
+
+  /* ── The pill ──────────────────────────────────────────────────────────── */
+
+  .mood-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    min-height: calc(var(--tap) + 0.5rem);
+    padding: var(--s-1) var(--s-1) var(--s-1) var(--s-4);
+    border: 1px solid color-mix(in srgb, var(--mood-glow, var(--border)) 38%, var(--border));
+    border-radius: var(--r-pill);
+    /* A tint, never paint: the words keep full contrast over it. */
+    background: color-mix(in srgb, var(--mood-glow, transparent) 8%, var(--card));
+    box-shadow: var(--shadow-card);
+    transition:
+      background-color 0.9s var(--ease-glide),
+      border-color 0.9s var(--ease-glide);
+  }
+
+  /* The point of light: same colour as the stage's edge. Neutral is an empty ring. */
+  .mood-dot {
+    flex: none;
+    width: 0.95rem;
+    height: 0.95rem;
+    border-radius: 50%;
+    border: 2px solid var(--border-strong);
+    background: transparent;
+    transition:
+      background-color 0.9s var(--ease-glide),
+      border-color 0.9s var(--ease-glide),
+      box-shadow 0.9s var(--ease-glide);
+  }
+
+  .mood:not([data-key="neutral"]) .mood-dot {
+    border-color: color-mix(in oklab, var(--mood-glow) 72%, var(--ink));
+    background: var(--mood-glow);
+    /* Soft halo: a point of light, not a warning lamp (anger is red, but it must not alarm). */
+    box-shadow:
+      0 0 0 4px color-mix(in srgb, var(--mood-glow) 18%, transparent),
+      0 0 12px 1px color-mix(in srgb, var(--mood-glow) 40%, transparent);
+  }
+
+  .mood-text {
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--s-3);
+    min-width: 0;
+    line-height: 1.3;
+  }
+
+  .mood-headline {
+    font-family: var(--font-display);
+    font-size: var(--t-md);
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+
+  .mood[data-status="none"] .mood-headline,
+  .mood[data-status="dismissed"] .mood-headline {
+    color: var(--ink-2);
+    font-weight: 600;
+  }
+
+  .mood-hint {
+    color: var(--ink-2);
+    font-size: var(--t-sm);
+  }
+
+  .mood-toggle {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-1);
+    min-height: var(--tap);
+    padding: 0 var(--s-3) 0 var(--s-4);
+    border: 1px solid transparent;
+    border-radius: var(--r-pill);
+    background: transparent;
+    color: var(--ink-2);
+    font-size: var(--t-sm);
+    font-weight: 650;
+    white-space: nowrap;
+    transition:
+      background-color 0.15s,
+      border-color 0.15s;
+  }
+
+  .mood-toggle:hover {
+    background: var(--subtle-2);
+    border-color: var(--border-strong);
+    color: var(--ink);
+  }
+
+  .mood-toggle[aria-expanded="true"] {
+    background: var(--subtle-2);
+    color: var(--ink);
+  }
+
+  .mood-chevron {
+    transition: transform 0.2s var(--ease);
+  }
+
+  .mood-toggle[aria-expanded="true"] .mood-chevron {
+    transform: rotate(180deg);
+  }
+
+  /* ── «¿Por qué?» ───────────────────────────────────────────────────────── */
+
+  /* Floats over the stage or the chat instead of pushing them: it never resizes the avatar. */
+  .mood-details {
+    position: absolute;
+    top: calc(100% + var(--s-2));
+    left: 0;
+    right: 0;
+    max-width: 34rem;
+    display: grid;
+    gap: var(--s-4);
+    padding: var(--s-4) var(--s-5);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--card);
+    box-shadow: var(--shadow-float);
+    color: var(--ink-2);
+    font-size: var(--t-base);
+    line-height: 1.45;
+  }
+
+  .mood-details[hidden] {
+    display: none;
+  }
+
+  .mood-why {
+    display: grid;
+    gap: var(--s-2);
+  }
+
+  .mood-why :global(.mood-why-hint) {
+    display: none;
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .mood-why :global(strong) {
+    color: var(--ink);
+  }
+
+  .mood-why :global(.mood-cues-title) {
+    margin-bottom: calc(-1 * var(--s-1));
+  }
+
+  .mood-why :global(.mood-cues) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-1);
+  }
+
+  .mood-why :global(.mood-cues li) {
+    padding: 0.15rem 0.65rem;
+    border-radius: var(--r-pill);
+    background: var(--subtle-2);
+    color: var(--ink-2);
+    font-size: var(--t-sm);
+  }
+
+  .mood-why :global(.mood-about) {
+    padding-top: var(--s-2);
+    border-top: 1px solid var(--border);
+    color: var(--ink-3);
+    font-size: var(--t-sm);
+  }
+
+  .mood-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-2);
+  }
+
+  .mood-actions .btn {
+    font-size: var(--t-base);
+  }
+
+  .mood-quiet {
+    border-color: transparent;
+    background: transparent;
+    color: var(--ink-2);
+  }
+
+  /* ── Hidden by the person ──────────────────────────────────────────────── */
+
+  .mood-show {
+    display: none;
+    align-items: center;
+    gap: var(--s-2);
+    min-height: var(--tap);
+    padding: 0 var(--s-4);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--r-pill);
+    background: transparent;
+    color: var(--ink-2);
+    font-size: var(--t-sm);
+    font-weight: 600;
+  }
+
+  .mood-show:hover {
+    background: var(--subtle-2);
+    color: var(--ink);
+  }
+
+  .mood[data-hidden="true"] .mood-bar,
+  .mood[data-hidden="true"] .mood-details {
+    display: none;
+  }
+
+  .mood[data-hidden="true"] .mood-show {
+    display: inline-flex;
+  }
+
+  /* ── New words fade in; nothing blinks or loops ────────────────────────── */
+
+  .mood.is-new .mood-text {
+    animation: mood-in 0.6s var(--ease) both;
+  }
+
+  @keyframes mood-in {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+  }
+
+  /* ── Narrow column: the sentence alone, the offer goes into «¿Por qué?» ── */
+
+  @container mood (max-width: 30rem) {
+    .mood-hint {
+      display: none;
+    }
+
+    .mood-why :global(.mood-why-hint) {
+      display: block;
+    }
+
+    .mood-headline {
+      font-size: var(--t-base);
+    }
+
+    .mood-bar {
+      gap: var(--s-2);
+      padding-left: var(--s-3);
+    }
+
+    .mood-toggle {
+      padding-left: var(--s-3);
+    }
+
+    .mood-details {
+      padding: var(--s-4);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mood-bar,
+    .mood-dot,
+    .mood-chevron {
+      transition: none;
+    }
+
+    .mood.is-new .mood-text {
+      animation: none;
+    }
+  }
+</style>

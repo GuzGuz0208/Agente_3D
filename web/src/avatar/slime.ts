@@ -94,6 +94,7 @@ import {
   type Material,
 } from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { CatParts, muzzleAt, paintStripes, type CatLook } from "./cat";
 import { GestureTracker, type GestureEvent, type PointerSample } from "./gestures";
 import { GooLayer } from "./goo";
 import { LipSync, VISEMES } from "./lipsync";
@@ -120,6 +121,7 @@ import {
   type EatOrbOptions,
   type MountAvatarOptions,
   type OrbBite,
+  type SlimeLookId,
 } from "./types";
 
 // --- Looks ------------------------------------------------------------------
@@ -154,6 +156,8 @@ interface SlimeFace {
   blushStrength: number;
   /** The single highlight painted on the crown. */
   shine: { u: number; v: number; sx: number; sy: number; roll: number; opacity: number };
+  /** A second, smaller glint low in each eye. */
+  sparkle?: boolean;
 }
 
 interface SlimeLook {
@@ -182,13 +186,19 @@ interface SlimeLook {
   };
   shape: SlimeShape;
   face: SlimeFace;
+  /** What must stay in frame round the focus point (defaults: `HALF_WIDTH`, `HALF_HEIGHT`). */
+  frame?: { halfWidth: number; halfHeight: number };
+  /** Extra room above the crown (ears) for the thinking dots and the sleeping "z". */
+  headroom?: number;
+  /** Cat parts: stripes, ears, tail, nose, whiskers and a "ω" mouth at rest (`cat.ts`). */
+  cat?: CatLook;
 }
 
 /**
  * Brand tokens (src/styles/tokens.css) mirrored here, because WebGL cannot read CSS colours.
- * Only `rosado` exists for now; a new look is one more entry with the same fields.
+ * A new look is one more entry with the same fields; both share every behaviour.
  */
-const SLIME_LOOKS = {
+const SLIME_LOOKS: Record<SlimeLookId, SlimeLook> = {
   rosado: {
     color: {
       body: 0xe5507d, // --rose-500
@@ -220,9 +230,55 @@ const SLIME_LOOKS = {
       shine: { u: -0.44, v: 0.62, sx: 0.12, sy: 0.07, roll: 0.6, opacity: 0.92 },
     },
   },
-} satisfies Record<string, SlimeLook>;
+  /**
+   * A lavender-grey jelly cat: soft tabby stripes on the crown and the back, a pale muzzle,
+   * round ears with a pink inside, pink cheeks and nose, deep plum eyes, and a tail.
+   */
+  gato: {
+    color: {
+      body: 0x8f86a8,
+      bodyDeep: 0x665d82,
+      shine: 0xf8f6fc,
+      eye: 0x2a2238,
+      mouth: 0x3b2c4a,
+      tongue: 0xe68aa5,
+      dots: 0xd9799a,
+      orb: 0xf2b6c6,
+      blush: [242, 182, 198], // #f2b6c6
+      shadow: [52, 44, 72],
+      goo: { body: [143, 134, 168], deep: [94, 85, 119], shine: [248, 246, 252] },
+      sadTint: 0xc4c0cc,
+      sky: 0xf8f6fc,
+      ground: 0x9a90b2,
+      rim: 0xece6f8,
+    },
+    shape: { width: 0.93, depth: 0.86, height: 1.0, flatBase: 0.7, footFlare: 0.13, crownTaper: 0.05 },
+    face: {
+      eyeU: 0.3,
+      eyeV: 0.13,
+      eyeRX: 0.092,
+      eyeRY: 0.122,
+      mouthV: -0.07,
+      blushU: 0.5,
+      blushV: -0.06,
+      blushStrength: 0.55,
+      shine: { u: -0.36, v: 0.5, sx: 0.1, sy: 0.058, roll: 0.6, opacity: 0.78 },
+      sparkle: true,
+    },
+    frame: { halfWidth: 1.3, halfHeight: 1.42 },
+    headroom: 0.24,
+    cat: {
+      stripe: 0x5e5577,
+      muzzle: 0xc9c3da,
+      innerEar: 0xf2b6c6,
+      nose: 0xe68aa5,
+      ear: { u: 0.47, v: 0.8, width: 0.25, height: 0.42, tilt: 0.36 },
+      tail: { root: [0.55, 0.42, -0.5], length: 1.3, radius: 0.105, tipRadius: 0.085 },
+      whiskers: 0.5,
+    },
+  },
+};
 
-type SlimeLookId = keyof typeof SLIME_LOOKS;
 const DEFAULT_LOOK: SlimeLookId = "rosado";
 
 // --- Layout -----------------------------------------------------------------
@@ -483,6 +539,7 @@ function buildBodyGeometry(look: SlimeLook): SphereGeometry {
   const body = new Color(look.color.body);
   const deep = new Color(look.color.bodyDeep);
   const light = new Color(look.color.shine);
+  const muzzle = look.cat ? new Color(look.cat.muzzle) : null;
   const mixed = new Color();
   const n = new Vector3();
   const cy = bodyCenterY(shape);
@@ -503,7 +560,9 @@ function buildBodyGeometry(look: SlimeLook): SphereGeometry {
     // Deeper towards the floor, a breath lighter at the crown: reads as a solid, lit gumdrop.
     const low = Math.pow(smoothstep(cy * 1.05, 0.02, py), 1.3) * 0.88;
     const high = smoothstep(cy + 0.35 * shape.height, top, py) * 0.07;
-    mixed.copy(body).lerp(deep, low).lerp(light, high);
+    mixed.copy(body);
+    if (muzzle) mixed.lerp(muzzle, 0.75 * muzzleAt(x, y0, z));
+    mixed.lerp(deep, low).lerp(light, high);
     colors[i * 3] = mixed.r;
     colors[i * 3 + 1] = mixed.g;
     colors[i * 3 + 2] = mixed.b;
@@ -527,6 +586,8 @@ class Stroke {
   private readonly position: BufferAttribute;
   private readonly capA: Mesh;
   private readonly capB: Mesh;
+  /** Rounds the middle point of a "ω". */
+  private readonly capMid: Mesh;
 
   /** `curved`: follow the curve of the body (wide strokes, like the mouth line). */
   constructor(material: Material, cap: CircleGeometry, renderOrder: number, private readonly curved = false) {
@@ -543,25 +604,32 @@ class Stroke {
     const line = new Mesh(this.geometry, material);
     this.capA = new Mesh(cap, material);
     this.capB = new Mesh(cap, material);
-    for (const part of [line, this.capA, this.capB]) {
+    this.capMid = new Mesh(cap, material);
+    this.capMid.visible = false;
+    for (const part of [line, this.capA, this.capB, this.capMid]) {
       part.renderOrder = renderOrder;
       part.frustumCulled = false; // rewritten every frame
     }
-    this.group.add(line, this.capA, this.capB);
+    this.group.add(line, this.capA, this.capB, this.capMid);
   }
 
-  /** y = bend * ((x / half)^2 - 0.5): bend > 0 lifts the ends (a smile, "‿"), bend < 0 drops them (a frown, "^"). */
-  update(half: number, bend: number, thickness: number): void {
+  /**
+   * y = bend * ((x / half)^2 - 0.5): bend > 0 lifts the ends (a smile, "‿"), bend < 0 drops them (a frown, "^").
+   * `omega` (0..1) folds it into two small smiles that meet in the middle, a cat's "ω".
+   */
+  update(half: number, bend: number, thickness: number, omega = 0): void {
     const n = STROKE_SEGMENTS;
     const out = this.position.array as Float32Array;
     const r = thickness / 2;
     const h = Math.max(1e-4, half);
     const lift = this.curved ? surfaceSag(h, 0) * 0.5 : 0;
+    const w = clamp(omega, 0, 1);
     for (let i = 0; i <= n; i++) {
       const s = -1 + (2 * i) / n;
       const x = s * h;
-      const y = bend * (s * s - 0.5);
-      const slope = (2 * bend * s) / h;
+      const fold = 2 * Math.abs(s) - 1;
+      const y = bend * ((1 - w) * (s * s - 0.5) + w * (fold * fold - 0.5));
+      const slope = (bend * ((1 - w) * 2 * s + w * 4 * fold * Math.sign(s))) / h;
       const len = Math.hypot(1, slope);
       const nx = -slope / len;
       const ny = 1 / len;
@@ -579,6 +647,12 @@ class Stroke {
     this.capB.position.set(h, bend * 0.5, capZ);
     this.capA.scale.setScalar(r);
     this.capB.scale.setScalar(r);
+    this.capMid.visible = w > 0.02;
+    if (this.capMid.visible) {
+      const y = bend * ((1 - w) * -0.5 + w * 0.5);
+      this.capMid.position.set(0, y, this.curved ? lift - surfaceSag(0, y) : 0);
+      this.capMid.scale.setScalar(r);
+    }
   }
 
   dispose(): void {
@@ -718,6 +792,10 @@ class Slime implements AvatarHandle {
   private readonly dotMeshes: Mesh[] = [];
   private readonly zeds: Sprite[] = [];
   private goo: GooLayer | null = null;
+  /** Ears, tail, nose and whiskers of the `gato` look; null for the others. */
+  private cat: CatParts | null = null;
+  private readonly catReach: Vector3[] = [];
+  private readonly lookId: SlimeLookId;
 
   private readonly white = new Color(0xffffff);
   private readonly sadColor: Color;
@@ -856,13 +934,15 @@ class Slime implements AvatarHandle {
 
   private frames = 0;
   private frameMs = 16.7;
+  private lastDt = 0;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly renderer: WebGLRenderer,
     lookId: SlimeLookId = DEFAULT_LOOK,
   ) {
-    this.look = SLIME_LOOKS[lookId];
+    this.lookId = lookId in SLIME_LOOKS ? lookId : DEFAULT_LOOK;
+    this.look = SLIME_LOOKS[this.lookId];
     this.sadColor = new Color(this.look.color.sadTint);
     this.glowColor = new Color(this.look.color.body);
     this.orbColor = new Color(this.look.color.orb);
@@ -889,6 +969,8 @@ class Slime implements AvatarHandle {
         emissiveIntensity: 0.06,
       }),
     );
+    // The cat's tabby stripes: a map multiplied over the vertex colours, so they keep the body's shading.
+    if (this.look.cat) this.gelMaterial.map = this.own(paintStripes(this.look.color.body, this.look.cat.stripe));
     const bodyGeometry = this.own(buildBodyGeometry(this.look));
     this.bodyPosition = bodyGeometry.getAttribute("position") as BufferAttribute;
     this.bodyNormal = bodyGeometry.getAttribute("normal") as BufferAttribute;
@@ -917,6 +999,19 @@ class Slime implements AvatarHandle {
     this.buildShine();
     this.buildThinkingDots();
     this.buildSleepingZeds();
+    if (this.look.cat) {
+      this.cat = new CatParts(this.look.cat, {
+        rig: this.rig,
+        mouthAnchor: this.mouthAnchor,
+        cheeks: this.blushes,
+        gel: this.gelMaterial,
+        body: this.look.color.body,
+        bodyDeep: this.look.color.bodyDeep,
+        place: (object, u, v, lift) => this.placeOn(object, u, v, lift),
+        meltPlace: (object, slip) => this.meltPlace(object, slip),
+        own: (item) => this.own(item),
+      });
+    }
 
     this.lower.position.y = -BODY_RADIUS;
     this.lower.add(this.rig);
@@ -1082,10 +1177,11 @@ class Slime implements AvatarHandle {
       state: this.state,
       mouth,
       expressions: [this.expression, ...reactions],
-      modelName: "slime",
+      modelName: `slime-${this.lookId}`,
       vrmVersion: "procedural",
       // Extra, for diagnostics only (not part of the contract).
       slime: {
+        look: this.lookId,
         gesture: this.gestures.phase,
         play: this.play,
         x: Number(this.body.x.toFixed(3)),
@@ -1216,6 +1312,13 @@ class Slime implements AvatarHandle {
       glint.scale.setScalar(face.eyeRX * 0.36);
       glint.position.set(-face.eyeRX * 0.32, face.eyeRY * 0.4, 0.045);
       shape.add(iris, glint);
+      if (face.sparkle) {
+        const small = new Mesh(disc, glintMaterial);
+        small.scale.setScalar(face.eyeRX * 0.16);
+        small.position.set(face.eyeRX * 0.34, -face.eyeRY * 0.36, 0.045);
+        small.renderOrder = 21;
+        shape.add(small);
+      }
       iris.renderOrder = 20;
       glint.renderOrder = 21;
 
@@ -1548,8 +1651,9 @@ class Slime implements AvatarHandle {
     camera.updateProjectionMatrix();
 
     const halfFov = Math.tan(MathUtils.degToRad(CAMERA_FOV) / 2);
-    const forHeight = (HALF_HEIGHT * FRAME_MARGIN) / halfFov;
-    const forWidth = (HALF_WIDTH * FRAME_MARGIN) / (halfFov * camera.aspect);
+    const frame = this.look.frame ?? { halfWidth: HALF_WIDTH, halfHeight: HALF_HEIGHT };
+    const forHeight = (frame.halfHeight * FRAME_MARGIN) / halfFov;
+    const forWidth = (frame.halfWidth * FRAME_MARGIN) / (halfFov * camera.aspect);
     this.fitDistance = Math.max(forHeight, forWidth);
     // Play mode: the smaller half of the frame is PLAY_HALF, whichever way the screen is turned.
     this.playDistance = Math.max(this.fitDistance * 1.3, PLAY_HALF / (halfFov * Math.min(1, camera.aspect)));
@@ -1638,14 +1742,26 @@ class Slime implements AvatarHandle {
     let maxX = -Infinity;
     let minY = Infinity;
     let maxY = -Infinity;
-    for (let i = 0; i + 2 < pos.length; i += 3 * 11) {
-      v.set(pos[i] ?? 0, pos[i + 1] ?? 0, pos[i + 2] ?? 0).applyMatrix4(m).project(this.camera);
+    const add = (): void => {
+      v.applyMatrix4(m).project(this.camera);
       const x = this.focus.x + v.x * hw;
       const y = this.focus.y + v.y * hh;
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
       if (y < minY) minY = y;
       if (y > maxY) maxY = y;
+    };
+    for (let i = 0; i + 2 < pos.length; i += 3 * 11) {
+      v.set(pos[i] ?? 0, pos[i + 1] ?? 0, pos[i + 2] ?? 0);
+      add();
+    }
+    // The cat's ears and tail reach further than the body: they must stay in the frame too.
+    if (this.cat) {
+      const count = this.cat.reachPoints(this.catReach);
+      for (let i = 0; i < count; i++) {
+        v.copy(this.catReach[i] as Vector3);
+        add();
+      }
     }
     if (!Number.isFinite(minX) || !Number.isFinite(minY)) return;
     const r = this.reach;
@@ -1841,6 +1957,7 @@ class Slime implements AvatarHandle {
 
   private animate(dt: number): void {
     this.time += dt;
+    this.lastDt = dt;
     const t = this.time;
     const target = MOODS[this.state];
     const cur = this.mood;
@@ -2425,13 +2542,16 @@ class Slime implements AvatarHandle {
     }
 
     // The line between words: smile, flat or frown. It folds away as the mouth opens.
+    // The cat smiles with a small "ω" instead (only a smile folds into one; a frown stays a frown).
     const fold = 1 - opened;
     this.smile.group.visible = fold > 0.02;
     if (this.smile.group.visible) {
-      const lineHalf = 0.085 * (1 + 0.15 * Math.abs(curve)) * widthK;
-      this.smile.update(lineHalf * (0.4 + 0.6 * fold), 0.055 * curve, 0.028);
+      const omega = this.cat ? smoothstep(0.25, 0.6, curve) * (1 - 0.7 * this.talk) : 0;
+      const lineHalf = 0.085 * (1 + 0.15 * Math.abs(curve)) * widthK * (1 - 0.18 * omega);
+      this.smile.update(lineHalf * (0.4 + 0.6 * fold), 0.055 * curve * (1 - 0.35 * omega), 0.028 - 0.004 * omega, omega);
       this.smile.group.position.y = -0.012 * curve;
     }
+    this.cat?.placeNose(opened > 0.01 ? top + bend * 0.5 : 0.0275 * Math.max(0, curve));
 
     // Cheeks: rosier with a tickle, much rosier while rubbed, and when pleased.
     const blush = clamp(cur.blush + face.blush * w + 0.3 * giggle + 1.3 * pet + 0.7 * eat.sat + 0.25 * melt, 0, 2.2);
@@ -2459,8 +2579,30 @@ class Slime implements AvatarHandle {
 
     this.placeShine();
 
-    // Dots and "z" ride along with the body, upright.
-    const top = this.topY * (1 - MELT_DROP * clamp(this.melt, 0, 1));
+    if (this.cat) {
+      this.cat.update({
+        t,
+        dt: this.lastDt,
+        motion: this.motion,
+        reduced: this.reducedMotion,
+        state: this.state,
+        expression: this.expression,
+        expr: cur.expr,
+        voice: this.talk * this.emphasis,
+        bounce: this.av,
+        melt: this.melt,
+        giggle: this.giggle,
+        ouch: Math.max(this.ouch, this.wince),
+        pet: this.pet,
+        flight: this.flight,
+        eatLook: this.eat.look,
+        eatSat: this.eat.sat,
+      });
+      this.cat.syncMaterial(this.gelMaterial);
+    }
+
+    // Dots and "z" ride along with the body, upright; above the ears, if there are any.
+    const top = this.topY * (1 - MELT_DROP * clamp(this.melt, 0, 1)) + (this.look.headroom ?? 0) * (1 - clamp(this.melt, 0, 1));
     const baseX = this.body.x;
     const baseY = this.body.y - BODY_RADIUS;
 
@@ -2524,7 +2666,7 @@ export async function mountSlime(canvas: HTMLCanvasElement, opts: MountAvatarOpt
   report(0);
   const renderer = createRenderer(canvas);
   try {
-    const slime = new Slime(canvas, renderer);
+    const slime = new Slime(canvas, renderer, opts.look);
     if (typeof location !== "undefined" && new URLSearchParams(location.search).has("avatarDemo")) slime.setDemoSpeech(true);
     report(1);
     return slime;

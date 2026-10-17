@@ -131,9 +131,10 @@ export abstract class RealtimeEngineBase implements VoiceEngine {
   protected abstract readonly inputRate: MicRate;
   /**
    * How long the user's voice must last while the agent speaks before it cuts the
-   * agent. 0 cuts at once (a provider that interrupts by itself, like Gemini).
+   * agent. 0 cuts at once (a provider that interrupts by itself). Not readonly: an
+   * adapter may set it from what the backend configured in the credential.
    */
-  protected readonly bargeConfirmMs: number = BARGE_CONFIRM_MS;
+  protected bargeConfirmMs: number = BARGE_CONFIRM_MS;
   /** The provider can answer with text only, so a client synthesizer can speak for it (docs/08 §15). */
   protected readonly supportsClonedVoice: boolean = false;
   /**
@@ -217,6 +218,12 @@ export abstract class RealtimeEngineBase implements VoiceEngine {
   protected abstract cancelGeneration(generationId: string, info: CancelInfo): void;
   /** Removes a user input that was only noise from the provider conversation, when the protocol allows it. */
   protected discardUserInput(_key: string): void {}
+  /**
+   * The 1-second rule confirmed an interruption by this user utterance; the agent was
+   * already cut locally and `cancelGeneration` called. For an adapter that must tell the
+   * provider more (Gemini without provider barge-in replays the voice it did not hear).
+   */
+  protected bargeConfirmed(_key: string): void {}
 
   // ── VoiceEngine ────────────────────────────────────────────────────────────
 
@@ -441,7 +448,7 @@ export abstract class RealtimeEngineBase implements VoiceEngine {
   /** The provider (or the local fallback) heard the user start talking. */
   protected userSpeechStarted(key: string, tStart: number = this.now()): void {
     this.mark("user_speech_started");
-    if (this.bargeConfirmMs > 0 && (this.agentAudible() || this.pendingTools > 0)) {
+    if (this.bargeConfirmMs > 0 && this.answerProtected()) {
       // The 1-second rule: duck the agent and wait; noise must not cut it.
       this.cancelBargeCandidate(false);
       this.player?.duck(DUCK_LEVEL);
@@ -450,6 +457,14 @@ export abstract class RealtimeEngineBase implements VoiceEngine {
       return;
     }
     this.beginUserTurn(key, tStart);
+  }
+
+  /**
+   * True while voice must pass the 1-second rule before it cuts anything: the agent is
+   * heard or a tool runs. An adapter may widen it (Gemini: the server is busy with an answer).
+   */
+  protected answerProtected(): boolean {
+    return this.agentAudible() || this.pendingTools > 0;
   }
 
   /** True while some agent audio is playing or queued and not discarded. */
@@ -475,7 +490,19 @@ export abstract class RealtimeEngineBase implements VoiceEngine {
     this.mark("barge_confirmed");
     // Cut the agent ourselves: flush, cancel and truncate to what was played (docs/08 §6).
     this.bargeIn(false);
+    this.bargeConfirmed(key);
     this.beginUserTurn(key, u?.tStart ?? this.now(), u);
+  }
+
+  /** The local voice detector of the microphone, or null while the microphone is closed. */
+  protected get localVoice(): { speaking: boolean; lastVoiceAt: number | null } | null {
+    const mic = this.mic;
+    return mic ? { speaking: mic.speaking === true, lastVoiceAt: mic.lastVoiceAt } : null;
+  }
+
+  /** PCM16 mono 16 kHz the microphone captured since `fromT` (session clock), from its 30 s ring. */
+  protected recentMicAudio(fromT: number): Int16Array | null {
+    return this.mic?.slicePcm?.(fromT, this.now()) ?? null;
   }
 
   private beginUserTurn(key: string, tStart: number, existing?: UserUtterance): void {

@@ -8,7 +8,7 @@
  */
 import briefMock from "../../mocks/brief.json";
 import toolMocks from "../../mocks/tool-results.json";
-import type { CacheStatus, DatasetBrief, EvidenceEnvelope, ToolCallPayload, VoiceMode } from "./types";
+import type { CacheStatus, DatasetBrief, EngineId, EvidenceEnvelope, ToolCallPayload, VoiceMode } from "./types";
 
 export const API_URL: string = (import.meta.env.PUBLIC_API_URL ?? "").replace(/\/+$/, "");
 export const USING_MOCKS: boolean = API_URL === "";
@@ -78,6 +78,8 @@ export interface HealthInfo {
   clonedEngines: string[];
   tools: { name: string; description: string }[];
   models: Partial<Record<string, string>>;
+  /** Engine the backend proposes first (`default_engine`, VOICE_DEFAULT_ENGINE), or null when it does not say. */
+  defaultEngine: EngineId | null;
 }
 
 let healthPromise: Promise<HealthInfo> | null = null;
@@ -85,7 +87,7 @@ let healthPromise: Promise<HealthInfo> | null = null;
 /** `GET /health`, once per page. On any failure only the engine voice is offered. */
 export function fetchHealth(): Promise<HealthInfo> {
   healthPromise ??= (async (): Promise<HealthInfo> => {
-    const fallback: HealthInfo = { modes: ["engine"], defaultMode: "engine", clonedEngines: [], tools: [], models: {} };
+    const fallback: HealthInfo = { modes: ["engine"], defaultMode: "engine", clonedEngines: [], tools: [], models: {}, defaultEngine: null };
     if (USING_MOCKS) return { ...fallback, modes: ["engine", "cloned"], clonedEngines: ["openai"] };
     try {
       const res = await fetch(`${API_URL}/health`, { signal: AbortSignal.timeout(4000) });
@@ -108,6 +110,7 @@ export function fetchHealth(): Promise<HealthInfo> {
               .map((t) => ({ name: String(t.name), description: typeof t.description === "string" ? t.description : "" }))
           : [],
         models,
+        defaultEngine: body.default_engine === "openai" || body.default_engine === "gemini" ? body.default_engine : null,
       };
     } catch {
       return fallback;
@@ -154,6 +157,8 @@ export interface RealtimeSessionGrant {
     audio?: { input?: { sample_rate?: number }; output?: { sample_rate?: number } };
     voice?: string;
     voice_mode?: string;
+    /** Who cuts the agent when the user talks over it: the provider ("server") or the browser ("client"). */
+    interruption?: string;
   };
   instructions_version?: string;
 }

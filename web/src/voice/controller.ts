@@ -577,7 +577,11 @@ export function restart(): void {
   store.reset();
 }
 
+/** The person picked an engine in /admin: the backend's default no longer replaces it. */
+let engineChosen = false;
+
 export function selectEngine(id: EngineId): void {
+  engineChosen = true;
   const s = store.getState();
   if (id === s.engine) return;
   if (s.running) void switchEngine(id, "user_choice", false);
@@ -638,21 +642,36 @@ export async function requery(toolCallId: string): Promise<void> {
   store.setRequery(toolCallId, { pending: false, matches, ms: env.trace.ms, at: Date.now() });
 }
 
-// Tool catalogue and model ids for the admin board (GET /health).
-void fetchHealth().then((h) => store.setHealth(h.tools, h.models));
-
-// Ask the backend which voices it offers, so the UI only shows what exists (docs/08 §3).
-void fetchVoiceModes().then((modes) => {
-  store.setVoiceModes(modes);
-  // Cloned voice by default when the backend offers it and the engine supports it (docs/08 §15.1);
-  // the selector in /admin goes back to the engine voice.
+/**
+ * The engine the backend proposes (`default_engine`, VOICE_DEFAULT_ENGINE) replaces the
+ * built-in one, unless a session already started or the person chose one in /admin.
+ */
+export function applyDefaultEngine(id: EngineId | null): void {
   const s = store.getState();
-  const engines = clonedVoiceEngines();
-  const supported = engineInfo(s.engine).clonedVoice && (engines === null || engines.includes(s.engine));
-  if (realEngines() && !s.running && s.voiceMode === "engine" && defaultVoiceMode() === "cloned" && modes.includes("cloned") && supported) {
-    store.setVoiceMode("cloned");
-  }
-});
+  if (!id || id === s.engine || engineChosen || s.running || s.conversation_id) return;
+  const info = createEngine(id, deps);
+  store.setEngine(id, info.model, info.simulated);
+}
+
+// Tool catalogue, model ids and the default engine (GET /health); then the voices, which depend on the engine.
+void fetchHealth()
+  .then((h) => {
+    store.setHealth(h.tools, h.models);
+    applyDefaultEngine(h.defaultEngine);
+  })
+  .catch(() => undefined)
+  .then(() => fetchVoiceModes())
+  .then((modes) => {
+    store.setVoiceModes(modes);
+    // Cloned voice by default when the backend offers it and the engine supports it (docs/08 §15.1);
+    // with Gemini (no cloned voice) the engine voice stays, without any notice. /admin can change it.
+    const s = store.getState();
+    const engines = clonedVoiceEngines();
+    const supported = engineInfo(s.engine).clonedVoice && (engines === null || engines.includes(s.engine));
+    if (realEngines() && !s.running && s.voiceMode === "engine" && defaultVoiceMode() === "cloned" && modes.includes("cloned") && supported) {
+      store.setVoiceMode("cloned");
+    }
+  });
 
 // Initial engine metadata, so the HUD is truthful before the first session.
 {

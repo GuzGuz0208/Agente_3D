@@ -179,6 +179,8 @@ def create_app(build: Callable[[], VoiceContainer] | None = None) -> FastAPI:
             "contract": CONTRACT_VERSION,
             "instructions_version": c.realtime.instructions_version,
             "engines": c.realtime.engines_status(),
+            # Additive: the engine the UI selects first (VOICE_DEFAULT_ENGINE; Gemini while testing).
+            "default_engine": c.realtime.default_engine(),
             "voice_modes": c.realtime.voice_modes(),
             # Additive (contract .2): the voice the UI selects first; cloned works with OpenAI only.
             "default_voice_mode": c.realtime.default_voice_mode(),

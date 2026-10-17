@@ -7,7 +7,14 @@
  *     the client only names the model;
  *   - microphone audio is PCM16 at 16 kHz; server frames arrive as binary JSON;
  *   - a tool response needs no follow-up request;
- *   - a barge-in arrives as an explicit "interrupted" flag;
+ *   - barge-in: with the backend default (`activityHandling: NO_INTERRUPTION`, grant
+ *     `config.interruption = "client"`) the server never cuts the agent and is deaf
+ *     while its turn is open (verified 2026-10-16: no voice activity, no transcript).
+ *     The browser applies the 1-second rule with its own voice detector, then cuts
+ *     the turn with a client content turn (`turnComplete: true` "unconditionally
+ *     interrupts generation") and replays the voice the server did not hear from the
+ *     microphone ring. With `START_OF_ACTIVITY_INTERRUPTS` ("server") the provider cuts
+ *     by itself and sends an explicit "interrupted" flag, as before;
  *   - style and context are sent as a tagged user note that must not be answered
  *     (a system turn closes the connection);
  *   - text-only output is not supported, so the cloned voice is not available.
@@ -16,7 +23,7 @@
  * Nothing provider-specific leaves this file (R-03).
  */
 import type { RealtimeSessionGrant } from "./api";
-import { base64ToPcm, openSocket, parseFrame, pcmToBase64, RealtimeEngineBase, type CancelInfo, type ProviderToolCall } from "./realtime-base";
+import { BARGE_CONFIRM_MS, base64ToPcm, openSocket, parseFrame, pcmToBase64, RealtimeEngineBase, type CancelInfo, type ProviderToolCall } from "./realtime-base";
 import { mayBeSpeech } from "./transcript-filter";
 import type { ContextEnvelope, StyleDecision } from "./types";
 
@@ -27,14 +34,27 @@ const obj = (v: unknown): Msg => (v && typeof v === "object" ? (v as Msg) : {});
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
 const NOTE = "[NOTA DEL SISTEMA, no la respondas ni la menciones]";
+/** Ends the server turn from the client. Verified: the model stays silent and listens to the voice that follows. */
+const CUT_NOTE = `${NOTE} La persona te interrumpió. No digas nada ahora: escucha lo que dice a continuación y responde solo a eso.`;
 /** Wait for late transcription fragments before closing a user utterance. */
 const FINALIZE_MS = 300;
+/** Local voice detector: consecutive voiced 20 ms frames that open a possible interruption. */
+const LOCAL_ONSET_FRAMES = 2;
+/** Local voice detector: silence that closes it (pauses between words are shorter). */
+const LOCAL_HANGOVER_MS = 300;
+/** Voice replayed before the local onset, like the provider's own prefix padding. */
+const REPLAY_PAD_MS = 300;
+/** After a confirmed interruption the server should report the replayed voice within this. */
+const ADOPT_TIMEOUT_MS = 5000;
+const REPLAY_CHUNK = 3200; // 200 ms at 16 kHz
+/** A model turn that never shows up does not keep the browser watching for it forever. */
+const BUSY_TIMEOUT_MS = 10_000;
 
 export class GeminiLiveEngine extends RealtimeEngineBase {
   readonly id = "gemini" as const;
   protected readonly inputRate = 16_000 as const;
-  /** The server cuts by itself (low start-of-speech sensitivity on the backend): no local wait. */
-  protected readonly bargeConfirmMs = 0;
+  /** 1-second rule by default; 0 when the credential leaves barge-in to the provider (set in openTransport). */
+  protected override bargeConfirmMs = BARGE_CONFIRM_MS;
   /** A client content turn interrupts the current generation, so the style note waits for the gap between turns. */
   protected override readonly styleWaitsForIdle = true;
 
@@ -51,6 +71,26 @@ export class GeminiLiveEngine extends RealtimeEngineBase {
   private userStopped = false;
   private finalizeTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly cancelledCalls = new Set<string>();
+  /** The server does not cut the agent (NO_INTERRUPTION): the browser does, with the 1-second rule. */
+  private clientBarge = true;
+  /** A client cut is due (sent at the end of the tick, unless a typed question carries it). */
+  private cutPending = false;
+  /** A client cut was sent in the current server turn. */
+  private cutSent = false;
+  /** User utterance opened by the local voice detector while the server could not hear. */
+  private localKey: string | null = null;
+  private localStartT = 0;
+  private voicedFrames = 0;
+  /** The local utterance was confirmed and replayed: the server's next activity is that same voice. */
+  private adopting = false;
+  private adoptTimer: ReturnType<typeof setTimeout> | undefined;
+  /** A model turn was asked for (question, note, tool result, end of speech) and has not closed yet. */
+  private serverBusy = false;
+  private busyTimer: ReturnType<typeof setTimeout> | undefined;
+  /** After a cut, the model may answer the cut note (silence) before anything else: not played. */
+  private muteNoteReply = false;
+  private mutedOutput = false;
+  private muteTimer: ReturnType<typeof setTimeout> | undefined;
 
   protected get transportReady(): boolean {
     return this.ready && this.ws?.readyState === WebSocket.OPEN;
@@ -73,6 +113,12 @@ export class GeminiLiveEngine extends RealtimeEngineBase {
     this.dropping = false;
     this.userKey = null;
     this.cancelledCalls.clear();
+    this.resetLocalBarge();
+    // An older backend says nothing: the provider default (START_OF_ACTIVITY_INTERRUPTS) cuts by itself.
+    this.clientBarge = grant.config?.interruption === "client";
+    // The local detector only calls a voice over after LOCAL_HANGOVER_MS of silence, so the wait
+    // grows by that much: voice that stopped before 1 s is known to be noise by then.
+    this.bargeConfirmMs = this.clientBarge ? BARGE_CONFIRM_MS + LOCAL_HANGOVER_MS : 0;
     const model = grant.model.startsWith("models/") ? grant.model : `models/${grant.model}`;
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error("setup timeout")), 8000);
@@ -99,6 +145,7 @@ export class GeminiLiveEngine extends RealtimeEngineBase {
 
   protected closeTransport(): void {
     clearTimeout(this.finalizeTimer);
+    this.resetLocalBarge();
     const ws = this.ws;
     this.ws = null;
     this.ready = false;
@@ -124,24 +171,38 @@ export class GeminiLiveEngine extends RealtimeEngineBase {
   protected sendAudioFrame(pcm: Int16Array): void {
     this.audioEpoch ??= this.now() - (pcm.length / this.inputRate) * 1000;
     this.send({ realtimeInput: { audio: { data: pcmToBase64(pcm), mimeType: `audio/pcm;rate=${this.inputRate}` } } });
+    if (this.clientBarge) this.watchLocalVoice();
   }
 
   protected sendUserText(text: string): void {
+    if (this.serverDeaf) {
+      // The server ignores input while it prepares or speaks an answer: the question itself ends that turn.
+      this.cutPending = false;
+      this.cutSent = true;
+      this.mark("client_cut", { by: "text" });
+      this.send({ clientContent: { turns: [{ role: "user", parts: [{ text }] }], turnComplete: true } });
+      this.expectAnswer();
+      return;
+    }
     this.send({ realtimeInput: { text } });
+    this.expectAnswer();
   }
 
   protected sendNote(text: string): void {
     this.send({ clientContent: { turns: [{ role: "user", parts: [{ text }] }], turnComplete: true } });
+    this.expectAnswer();
   }
 
   protected sendGreeting(spokenBrief: string): void {
     // The figures of the greeting come from the live brief, never from the model (R-22).
     this.send({ realtimeInput: { text: `${NOTE} Preséntate ahora diciendo exactamente este texto, sin añadir ni cambiar cifras: «${spokenBrief}»` } });
+    this.expectAnswer();
   }
 
   protected sendToolOutput(call: ProviderToolCall, output: Record<string, unknown>): void {
     if (this.cancelledCalls.delete(call.callId)) return; // the provider withdrew this call
     this.send({ toolResponse: { functionResponses: [{ id: call.callId, name: call.name, response: output }] } });
+    this.expectAnswer();
   }
 
   protected sendSeed(context: ContextEnvelope): void {
@@ -154,13 +215,126 @@ export class GeminiLiveEngine extends RealtimeEngineBase {
     this.send({ clientContent: { turns: [{ role: "user", parts: [{ text: `${NOTE} ${this.styleNote(style)}` }] }], turnComplete: false } });
   }
 
-  protected cancelGeneration(generationId: string, _info: CancelInfo): void {
-    // There is no client-side cancel: the provider stops by itself when it hears the user.
-    // After a local stop it may keep sending the old turn, which is dropped until it closes.
+  protected cancelGeneration(generationId: string, info: CancelInfo): void {
+    // After a local stop the provider may keep sending the old turn, which is dropped until it closes.
     if (this.generation === generationId) {
       this.generation = null;
       this.dropping = this.serverTurnOpen;
     }
+    // Without provider barge-in the server would stay deaf until it believes the answer was
+    // played: end its turn. Deferred to the end of the tick so a typed question can carry it.
+    if (this.serverDeaf && !info.byProvider && !this.cutSent && !this.cutPending) {
+      this.cutPending = true;
+      queueMicrotask(() => this.flushCut());
+    }
+  }
+
+  protected override bargeConfirmed(key: string): void {
+    if (!this.clientBarge || key !== this.localKey) return;
+    this.flushCut();
+    // The server did not hear the voice that cut the agent: send it again from the microphone ring.
+    const pcm = this.recentMicAudio(this.localStartT - REPLAY_PAD_MS);
+    if (pcm && pcm.length > 0) {
+      for (let i = 0; i < pcm.length; i += REPLAY_CHUNK) {
+        this.send({ realtimeInput: { audio: { data: pcmToBase64(pcm.subarray(i, i + REPLAY_CHUNK)), mimeType: `audio/pcm;rate=${this.inputRate}` } } });
+      }
+      // The provider's audio offsets now count the replayed stretch twice.
+      if (this.audioEpoch !== null) this.audioEpoch -= (pcm.length / this.inputRate) * 1000;
+    }
+    this.mark("voice_replayed", { ms: Math.round(((pcm?.length ?? 0) / this.inputRate) * 1000) });
+    this.adopting = true;
+    clearTimeout(this.adoptTimer);
+    this.adoptTimer = setTimeout(() => {
+      // The server never reported it (too quiet for its detector): close it as an empty turn.
+      if (!this.adopting || this.userKey !== this.localKey) return;
+      this.adopting = false;
+      this.localKey = null;
+      this.stopUser();
+      this.closeUser();
+    }, ADOPT_TIMEOUT_MS);
+  }
+
+  /** Ends the open server turn from the client (documented: `turnComplete: true` interrupts unconditionally). */
+  private flushCut(): void {
+    this.cutPending = false;
+    if (!this.serverDeaf || this.cutSent || !this.transportReady) return;
+    this.cutSent = true;
+    this.mark("client_cut");
+    this.send({ clientContent: { turns: [{ role: "user", parts: [{ text: CUT_NOTE }] }], turnComplete: true } });
+    this.muteNoteReply = true;
+    this.mutedOutput = false;
+    clearTimeout(this.muteTimer);
+    this.muteTimer = setTimeout(() => (this.muteNoteReply = false), BUSY_TIMEOUT_MS);
+  }
+
+  /** A request the model must answer aloud: what it says next is not the reply to a cut note. */
+  private expectAnswer(): void {
+    this.muteNoteReply = false;
+    this.markBusy();
+  }
+
+  /**
+   * Local voice detector, while the server is deaf (its turn is open and the agent is
+   * heard). It opens a possible interruption for the base (duck + 1-second rule); voice
+   * that ends before the rule is noise the server never heard, closed here.
+   */
+  private watchLocalVoice(): void {
+    const voice = this.localVoice;
+    if (!voice) return;
+    const t = this.now();
+    if (this.localKey === null) {
+      this.voicedFrames = voice.speaking ? this.voicedFrames + 1 : 0;
+      if (this.voicedFrames < LOCAL_ONSET_FRAMES || !this.serverDeaf || this.userKey !== null) return;
+      this.voicedFrames = 0;
+      this.localStartT = t - LOCAL_ONSET_FRAMES * 20;
+      this.mark("local_voice_start");
+      this.localKey = this.openUser(this.localStartT);
+      return;
+    }
+    if (this.userKey !== this.localKey) {
+      this.localKey = null; // superseded by the server or closed elsewhere
+      this.adopting = false;
+      return;
+    }
+    if (this.adopting) return; // confirmed: the server's detector takes it from here
+    const quiet = voice.lastVoiceAt === null || t - voice.lastVoiceAt > LOCAL_HANGOVER_MS;
+    if (!quiet) return;
+    // Shorter than the 1-second rule: noise. The agent goes on at full volume.
+    this.localKey = null;
+    this.mark("local_voice_noise");
+    this.stopUser(voice.lastVoiceAt ?? t);
+    this.closeUser();
+  }
+
+  /** Without provider barge-in the server hears nothing while it prepares or speaks an answer. */
+  private get serverDeaf(): boolean {
+    return this.clientBarge && (this.serverTurnOpen || this.serverBusy);
+  }
+
+  /** While the server is deaf, voice must pass the 1-second rule before it cuts the answer. */
+  protected override answerProtected(): boolean {
+    return super.answerProtected() || this.serverDeaf;
+  }
+
+  private markBusy(): void {
+    if (!this.clientBarge) return;
+    this.serverBusy = true;
+    clearTimeout(this.busyTimer);
+    this.busyTimer = setTimeout(() => (this.serverBusy = false), BUSY_TIMEOUT_MS);
+  }
+
+  private resetLocalBarge(): void {
+    clearTimeout(this.adoptTimer);
+    clearTimeout(this.busyTimer);
+    clearTimeout(this.muteTimer);
+    this.serverBusy = false;
+    this.muteNoteReply = false;
+    this.mutedOutput = false;
+    this.cutPending = false;
+    this.cutSent = false;
+    this.localKey = null;
+    this.adopting = false;
+    this.voicedFrames = 0;
   }
 
   // ── Inbound ────────────────────────────────────────────────────────────────
@@ -206,9 +380,12 @@ export class GeminiLiveEngine extends RealtimeEngineBase {
   private ensureGeneration(): string {
     if (this.generation) return this.generation;
     // The model is answering: the user's turn is over, even if no activity event said so.
-    this.stopUser();
+    // Not a voice the local detector is still weighing: it may yet interrupt this answer.
+    if (this.localKey === null || this.userKey !== this.localKey) this.stopUser();
     const id = `gem-${crypto.randomUUID()}`;
     this.generation = id;
+    // A new server turn: a cut sent for an earlier one does not count for it.
+    if (!this.serverTurnOpen) this.cutSent = false;
     this.serverTurnOpen = true;
     // The core may drop it at once (the answer to a noise transcript): then `dropping` is set.
     this.generationStarted(id);
@@ -230,8 +407,23 @@ export class GeminiLiveEngine extends RealtimeEngineBase {
     if (msg.voiceActivity) {
       const activity = obj(msg.voiceActivity);
       const kind = str(activity.type);
-      if (kind === "ACTIVITY_START") this.openUser(this.offsetToClock(activity.audioOffset));
-      else if (kind === "ACTIVITY_END") this.stopUser(this.offsetToClock(activity.audioOffset));
+      if (kind === "ACTIVITY_START") {
+        this.muteNoteReply = false; // the server listens to the person: its next answer is for them
+        if (this.localKey !== null && this.userKey === this.localKey) {
+          // The voice the local detector already opened (replayed, or heard once the turn closed):
+          // same utterance, from now on followed by the server's detector.
+          clearTimeout(this.adoptTimer);
+          this.adopting = false;
+          this.localKey = null;
+          this.userStopped = false;
+          this.mark("local_voice_adopted");
+        } else {
+          this.openUser(this.offsetToClock(activity.audioOffset));
+        }
+      } else if (kind === "ACTIVITY_END") {
+        this.stopUser(this.offsetToClock(activity.audioOffset));
+        this.markBusy(); // the server starts its answer now and stops listening
+      }
     }
 
     if (msg.serverContent) {
@@ -257,18 +449,32 @@ export class GeminiLiveEngine extends RealtimeEngineBase {
         this.providerInterrupted(id);
       }
 
-      // `dropping` is checked per part: starting a generation can set it (a dropped noise answer).
-      for (const part of arr(obj(content.modelTurn).parts)) {
-        const inline = obj(obj(part).inlineData);
-        if (this.dropping) break;
-        if (typeof inline.data === "string" && inline.data) this.agentAudio(this.ensureGeneration(), base64ToPcm(inline.data));
-      }
+      const parts = arr(obj(content.modelTurn).parts);
       const spoken = str(obj(content.outputTranscription).text);
-      if (spoken && !this.dropping) this.agentTranscript(this.ensureGeneration(), spoken, { final: false, append: true });
+      if (this.muteNoteReply && (parts.length > 0 || spoken)) {
+        // Late output of the cut turn (still open) is dropped; once it closed, this is the model's
+        // reply to the cut note itself (verified: ~1 s of silence, «<no speech detected>»).
+        if (!this.serverTurnOpen) {
+          this.mutedOutput = true;
+          this.markBusy();
+        }
+      } else {
+        // `dropping` is checked per part: starting a generation can set it (a dropped noise answer).
+        for (const part of parts) {
+          const inline = obj(obj(part).inlineData);
+          if (this.dropping) break;
+          if (typeof inline.data === "string" && inline.data) this.agentAudio(this.ensureGeneration(), base64ToPcm(inline.data));
+        }
+        if (spoken && !this.dropping) this.agentTranscript(this.ensureGeneration(), spoken, { final: false, append: true });
+      }
 
       if (content.generationComplete) this.endGeneration();
       if (content.turnComplete) {
+        if (this.muteNoteReply && this.mutedOutput) this.muteNoteReply = false;
         this.serverTurnOpen = false;
+        this.serverBusy = false;
+        clearTimeout(this.busyTimer);
+        this.cutSent = false;
         this.dropping = false;
         this.endGeneration();
       }

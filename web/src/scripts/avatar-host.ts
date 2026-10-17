@@ -283,7 +283,10 @@ export function hostAvatar(stage: HTMLElement, canvas: HTMLCanvasElement): Avata
     const map = toExpression;
     if (!map || typeof handle?.setExpression !== "function") return;
     safely(() => {
-      const next = map({ affect: state.affect[state.affect.length - 1]?.estimate ?? null, style: state.style.style });
+      const last = state.affect[state.affect.length - 1];
+      // A reading rejected with «No es así» no longer drives the face.
+      const affect = last && last.utterance_id !== state.dismissedAffect ? last.estimate : null;
+      const next = map({ affect, style: state.style.style });
       if (next === expression) return;
       expression = next;
       handle?.setExpression?.(next);

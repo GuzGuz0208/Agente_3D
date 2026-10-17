@@ -33,6 +33,9 @@ export type AvatarExpression =
 /** `slime` is the default; `humano` is the realistic VRM model, kept for comparison. */
 export type AvatarCharacter = "slime" | "humano";
 
+/** Looks of the slime (same character, same behaviour): the pink gumdrop, or the lavender jelly cat. */
+export type SlimeLookId = "rosado" | "gato";
+
 export interface AvatarDebugInfo {
   fps: number;
   frameMs: number;
@@ -100,6 +103,8 @@ export interface OrbBite {
 export interface MountAvatarOptions {
   /** Which character to mount. Defaults to the one stored by `pickCharacter`. */
   character?: AvatarCharacter;
+  /** Slime only: which look. Defaults to the one stored by `pickSlimeLook`. */
+  look?: SlimeLookId;
   /** Human only: URL of the VRM file. */
   modelUrl?: string;
   onProgress?: (p: number) => void;

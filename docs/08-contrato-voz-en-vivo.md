@@ -102,7 +102,10 @@ turno, transcripción de entrada y **modalidad de salida** (audio, o solo texto 
 `config.voice_mode` es el modo **efectivo**: si el motor pedido no admite salida de solo texto, el
 backend responde `engine` y la interfaz lo muestra (§15.6). Los adaptadores solo traducen.
 `GET /health` añade `voice_modes` (`["engine"]` o `["engine","cloned"]`, según haya clave de síntesis
-configurada) para que la interfaz sepa si ofrecer el selector de voz.
+configurada) para que la interfaz sepa si ofrecer el selector de voz, y `default_engine` (aditivo):
+el motor que la interfaz elige al cargar (`VOICE_DEFAULT_ENGINE`, por omisión `gemini` mientras se
+prueba; `openai` para la demo, [11](11-despliegue.md) §2). Se aplica antes de la primera sesión y
+nunca si la persona ya eligió motor en /admin. Con Gemini la voz es la del motor, sin aviso.
 
 | | OpenAI Realtime | Gemini Live |
 |---|---|---|
@@ -111,11 +114,12 @@ configurada) para que la interfaz sepa si ofrecer el selector de voz.
 | Modelo | ID **verificado llamándolo** | ID **verificado llamándolo** |
 | Transcripción | Modelo de transcripción de entrada aparte; salida del agente en eventos de texto | `inputAudioTranscription` y `outputAudioTranscription` |
 | Límites | Duración de sesión por documentación del proveedor | Conexión ≈ 10 min con `goAway` ≈ 60 s antes; solo audio ≈ 15 min |
-| Interrupción | `conversation.item.truncate` con `audio_end_ms` ≤ audio realmente reproducido | Evento `interrupted` del servidor |
+| Interrupción | `interrupt_response: false`; el navegador corta (regla de 1 s) y manda `conversation.item.truncate` con `audio_end_ms` ≤ audio realmente reproducido | `activityHandling: NO_INTERRUPTION` (`config.interruption = "client"`); el navegador corta (regla de 1 s) con un turno de cliente y reenvía la voz (§6) |
 
 ## 4. Audio
 
-- **Captura:** `getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } })`; un `AudioWorklet` entrega PCM16 mono a 16 kHz en tramas de 20 ms.
+- **Captura (micrófono del PC, agente por parlantes):** `getUserMedia({ audio: { echoCancellation: "all", noiseSuppression: true, autoGainControl: true, voiceIsolation: true, channelCount: 1 } })`. El agente suena por Web Audio, no por `RTCPeerConnection`, y `echoCancellation: true` solo garantiza cancelar el audio de una PeerConnection; `"all"` (Chrome/Edge 141+) pide cancelar todo lo que suena en el sistema y los navegadores anteriores lo toman como `true`. `voiceIsolation` se ignora donde no existe. Si el navegador rechaza las restricciones (`OverconstrainedError`), se reintenta con las anteriores (`echoCancellation: true`, sin `voiceIsolation`); un permiso denegado no se reintenta. En desarrollo se registra en consola `track.getSettings()` (`[mic] settings`) para ver qué aplicó el navegador. Un `AudioWorklet` entrega PCM16 mono a 16 kHz en tramas de 20 ms.
+- **Ruido en OpenAI:** `input_audio_noise_reduction` = `far_field` por omisión (micrófono a distancia, `REALTIME_NOISE_REDUCTION`; `near_field` con diadema).
 - **Reproducción:** PCM16 a 24 kHz en una cola programada con `AudioBufferSourceNode`; **máximo 2 s en cola**; `flush()` inmediato al interrumpir; se lleva `played_ms` por generación.
 - **`MicTap`:** anillo de los últimos 30 s de PCM16. `slice(t_start − 250 ms, t_end + 250 ms)` → WAV (≤ 30 s ≈ 960 KB) para el analista; así los recortes caben en el límite de 4,5 MB de Vercel.
 - El stack de audio es **uno solo**; cada motor solo cambia el protocolo (JSON con base64 o binario, `mime`). La voz clonada usa **el mismo reproductor y el mismo formato** (PCM16 mono a 24 kHz); solo cambia quién entrega los chunks (§15.3).
@@ -134,12 +138,48 @@ configurada) para que la interfaz sepa si ofrecer el selector de voz.
 
 1. **Detección:** voz del usuario según el motor, o botón *Detener*.
 2. **Local, inmediato:** parar la reproducción y vaciar la cola; fijar `played_ms` de la generación activa.
-3. **Hacia el motor:** OpenAI → `truncate` con `audio_end_ms = min(played_ms, audio recibido)`; Gemini → el servidor ya detuvo la generación.
+3. **Hacia el motor:** OpenAI → `truncate` con `audio_end_ms = min(played_ms, audio recibido)`; Gemini → ver «Regla de 1 s en Gemini» abajo (con `START_OF_ACTIVITY_INTERRUPTS` el servidor ya detuvo la generación).
 4. **Texto escuchado (`delivered_text`):** solo el texto alineado con el audio reproducido; el resto se conserva como diagnóstico y se muestra atenuado como «no escuchado». El historial conversacional usa únicamente lo escuchado.
 5. **Descartar** todo chunk o evento posterior de esa `generation_id`, aunque el proveedor siga generando.
 6. El nuevo enunciado abre un turno con el `state_version` vigente. **Un turno en primer plano y una generación hablando por conversación** (R-24).
 
 Con voz clonada los pasos 1, 2, 5 y 6 no cambian; los pasos 3 y 4 se resuelven como indica §15.4.
+
+**Regla de 1 s (ruido):** mientras el agente habla, la voz del usuario baja el volumen del agente
+al 30 %; si dura **≥ 1 s** se corta (pasos 2–6); si termina antes, es ruido: el agente sigue a
+volumen normal y nada se responde. Igual en los dos motores:
+
+- **OpenAI:** `interrupt_response: false`; el inicio y fin de voz los da el VAD del servidor.
+- **Gemini (`activityHandling: NO_INTERRUPTION`, por omisión):** verificado contra Gemini real
+  (2026-10-16) que con `NO_INTERRUPTION` el servidor **no oye** mientras prepara o dice una
+  respuesta (ni `voiceActivity` ni transcripción; esa voz se pierde) y que un `clientContent` con
+  `turnComplete: false` no lo corta. Por eso: (1) el navegador detecta la voz con su VAD local
+  (`MicTap`, inicio con 40 ms de voz, fin con 300 ms de silencio; espera 1,3 s porque el fin solo se
+  sabe 300 ms después, así la voz que paró antes de 1 s ya se reconoció como ruido); (2) al
+  confirmar corta el turno con `clientContent{turns:[nota «te interrumpió, escucha»], turnComplete:
+  true}` — la documentación dice que `turn_complete=true` «unconditionally interrupts generation»
+  ([live-guide](https://ai.google.dev/gemini-api/docs/live-guide), [API](https://ai.google.dev/api/live)
+  `ActivityHandling`, `BidiGenerateContentClientContent`); el servidor responde `interrupted` +
+  `turnComplete` en ≈ 200 ms y el modelo no habla por la nota; (3) **reenvía** desde el anillo de
+  `MicTap` la voz que el servidor no oyó (desde 300 ms antes del inicio local), para que la pregunta
+  llegue completa; (4) el `ACTIVITY_START` que el servidor emite por esa voz se **adopta** como el
+  mismo enunciado. Un texto escrito mientras el servidor está ocupado viaja como ese mismo turno de
+  cliente; *Detener* también corta el turno (si no, el servidor seguiría sordo hasta creer que
+  terminó de sonar). `GEMINI_ACTIVITY_HANDLING=START_OF_ACTIVITY_INTERRUPTS` vuelve al corte del
+  servidor (sin regla de 1 s).
+- **Medido con Gemini real** (2026-10-16, Edge sin interfaz, micrófono falso con WAV): ráfaga de
+  ruido de 0,4 s y voz de 0,8 s mientras el agente habla → baja el volumen y sigue, nada se envía
+  (2 de 2); pregunta de 3,4 s → corte a 1,3 s, `interrupted` + `turnComplete` en ≈ 0,1–0,3 s,
+  adopción, transcripción completa («¿Cuántas IPS públicas hay en Antioquia?») y respuesta con
+  herramienta (**5 de 6**). En la ejecución fallida (red inestable esa tarde) el servidor no
+  reportó la voz reenviada: el agente se calló y a los 5 s el enunciado se cerró vacío; la persona
+  tiene que repetir la pregunta. Tras *Detener* sin voz, el modelo responde a la nota con ≈ 1 s de
+  silencio («<no speech detected>»): esa respuesta no se reproduce ni se muestra.
+- **Límite conocido:** si el modelo empezara a responder la nota antes de procesar la voz
+  reenviada, esa voz se perdería (el servidor vuelve a estar sordo). No se observó en las pruebas.
+- **Sin verificar:** eco real con parlantes (en el navegador sin interfaz el agente no vuelve al
+  micrófono). Si `echoCancellation: "all"` no basta, el propio agente podría disparar la regla:
+  ensayar con los parlantes del PC del evento; si pasa, usar audífonos.
 
 La cancelación cuenta como medida de latencia (parada p95 ≤ 200 ms) pero un botón *Detener* **no** prueba que la interrupción por voz funcione: se ensaya con audio real y, si hay eco, con audífonos.
 

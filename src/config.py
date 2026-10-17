@@ -71,8 +71,17 @@ class Settings(BaseSettings):
     # False: the server does NOT cut the agent on any sound; the browser interrupts only after
     # >= 1 s of continuous user speech (docs/08 section 6). True restores provider barge-in.
     realtime_interrupt_response: bool = False
-    realtime_noise_reduction: str = "near_field"  # near_field | far_field | "" (off)
+    # far_field: the demo runs on the PC / laptop microphone, away from the mouth (OpenAI
+    # recommends far_field for laptop and conference-room microphones; near_field for headsets).
+    realtime_noise_reduction: str = "far_field"  # near_field | far_field | "" (off)
     gemini_start_sensitivity: str = "START_SENSITIVITY_LOW"
+    # NO_INTERRUPTION: Gemini does NOT cut the agent on any sound it hears; the browser applies the
+    # same 1-second rule as with OpenAI and cuts the generation itself (docs/08 section 6).
+    # START_OF_ACTIVITY_INTERRUPTS restores the provider's own barge-in; "" leaves the provider default.
+    gemini_activity_handling: str = "NO_INTERRUPTION"
+    # Engine the interface selects first (GET /health -> default_engine). "gemini" while testing so
+    # the OpenAI quota is kept for the final rehearsal; VOICE_DEFAULT_ENGINE=openai for the demo.
+    voice_default_engine: str = "gemini"  # gemini | openai
     openai_transcribe_model: str = "gpt-4o-mini-transcribe"
     gemini_live_model: str = "gemini-3.8-live"
     gemini_live_voice: str = "Kore"

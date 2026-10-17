@@ -257,7 +257,7 @@ const questions = brief.suggested_questions.slice(0, 4);
 
   .chips button:hover {
     background: var(--accent-soft);
-    border-color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
   }
 
   /* ── Messages ──────────────────────────────────────────────────────────── */
@@ -431,17 +431,28 @@ const questions = brief.suggested_questions.slice(0, 4);
     gap: 0.35em;
     min-height: 2.25rem;
     padding: 0.25rem var(--s-3);
-    border: 1px solid var(--accent);
+    /* The person's side, quietly: a soft accent tint with a hairline in the
+       same hue and dark accent ink, never a saturated outline. */
+    border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
     border-radius: var(--r-pill);
     background: var(--accent-soft);
-    color: var(--primary-ink);
+    color: var(--accent-ink);
     font-size: var(--t-sm);
     font-weight: 650;
+    transition:
+      background-color 0.15s,
+      border-color 0.15s;
+  }
+
+  .consent-btn:hover {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent-soft) 70%, var(--card));
   }
 
   .consent-off-btn {
     border-color: var(--border-strong);
     background: transparent;
+    color: var(--ink-2);
     font-weight: 600;
   }
 

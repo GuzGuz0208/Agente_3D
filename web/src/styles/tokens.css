@@ -1,129 +1,178 @@
 /*
- * Design tokens. Two hues: the slime's pink («rose») and a harmonic violet
- * accent, over warm plum neutrals. The avatar's body is rose, so rose is the
- * agent's side (primary, speaking) and violet the person's side (user bubbles,
- * listening), kept soft. The talk button is the call to action (--cta*): a
- * light rose, the slime's own colour, because a saturated violet shouted. The old «Holst» blues were retired: blue text and
- * hairlines clashed with the pink body, so neutrals moved to a plum/mauve scale
- * that shares the slime's hue at very low chroma.
+ * Design tokens, with one palette per avatar. Choosing a character repaints
+ * the whole site in its colours (scripts/theme.ts sets <html data-theme>):
  *
- * State and emphasis are told apart by value (light/dark), shape and icon, never
- * by a traffic-light hue. The single red is reserved for real errors; it leans
- * to brick (hue ≈ 3°) so it never reads as the rose primary (hue ≈ 340°).
+ *   rosa    the pink slime (default, also when nothing is stored)
+ *   gato    the cat slime: lavender-grey body, darker stripes, pink ears
+ *   humano  the 3D anime character: charcoal and grey jacket, crimson cords
+ *           and eyes, light skin
  *
- * Every colour used anywhere in src/ is defined here (the avatar module keeps
- * its own copy of the rose hexes). There is no dark theme.
+ * Every theme is built the same way, after Material Design 3's colour roles:
+ *
+ *   --p-*  primary scale: the avatar's own body colour. The agent's side
+ *          (primary buttons, speaking, the brand mark, headlines).
+ *   --a-*  accent scale: a second feature of the same avatar, kept at lower
+ *          chroma than the primary (M3 «secondary/tertiary»). The person's side
+ *          (user bubbles, listening) and the quiet highlights (chips on hover,
+ *          switches). It never fills a large area with a saturated colour.
+ *   --n-*  neutral scale: the primary hue at very low chroma (text, hairlines,
+ *          shadows), so greys never look cold next to the avatar.
+ *
+ * Components use the role tokens further down (--primary, --accent, --cta…).
+ * The old scale names (--rose-*, --violet-*, --plum-*) are kept as aliases of
+ * --p-*, --a-* and --n-* so every component written before the themes follows
+ * the active theme too: in «gato», --rose-500 is the cat's lavender.
+ *
+ * Contrast floor in every theme (WCAG 2.2 AA, measured): body text ≥ 4.5:1 on
+ * every surface it sits on, large headings and icons ≥ 3:1, field borders and
+ * the focus ring ≥ 3:1 (SC 1.4.11, 2.4.13). Older users read better with
+ * high-value contrast and no reliance on hue alone, so state and emphasis are
+ * told apart by value, shape and icon as well as colour.
+ *
+ * The single red is reserved for real errors; it leans to brick (hue ≈ 3°).
+ * Emotion glows (scripts/emotion-glow.ts) keep their own fixed colours.
+ * There is no dark theme.
  */
 :root {
   color-scheme: light;
 
-  /* ── Rose scale (the slime; --rose-500 is its body) ───────────────────── */
-  --rose-950: #3a0a1e;
-  --rose-900: #5e1131;
-  --rose-800: #861a45;
-  --rose-700: #a8234f;
-  --rose-600: #c9305f;
-  --rose-500: #e5507d; /* slime body */
-  --rose-400: #f17aa0;
-  --rose-300: #f8a9c1;
-  --rose-100: #fde1ea;
-  --rose-75: #feedf2;
-  --rose-50: #fff7fa;
+  /* ── «rosa»: the pink slime (default) ───────────────────────────────────── */
+  /* Primary: rose; --p-500 is the slime's body */
+  --p-950: #3a0a1e;
+  --p-900: #5e1131;
+  --p-800: #861a45;
+  --p-700: #a8234f;
+  --p-600: #c9305f;
+  --p-500: #e5507d;
+  --p-400: #f17aa0;
+  --p-300: #f8a9c1;
+  --p-100: #fde1ea;
+  --p-75: #feedf2;
+  --p-50: #fff7fa;
 
-  /* ── Plum scale (warm neutrals: text, hairlines, shadows) ─────────────── */
-  --plum-950: #2b1624; /* ink */
-  --plum-900: #3f2236;
-  --plum-700: #5c3a52;
-  --plum-600: #704a65; /* quiet text that still passes AA on --rose-75 */
-  --plum-500: #8a6380; /* field borders and «off» controls: ≥ 4.5:1 on white */
-  --plum-400: #a88aa0;
-  --plum-300: #d6c0cf;
-  --plum-100: #efdfe8;
+  /* Accent: a dusty orchid, 35° from the rose and at a third of the chroma of
+     the old blue-violet (#5b4fc4), which shouted next to the pink. */
+  --a-900: #432a5a;
+  --a-700: #6b4c8a;
+  --a-500: #9a7cba;
+  --a-300: #cbb7e0;
+  --a-100: #f2ecf8;
 
-  /* ── Violet scale (accent: the person's side) ─────────────────────────── */
-  --violet-900: #3b3391; /* derived: violet ink */
-  --violet-700: #5b4fc4;
-  --violet-500: #7c6cf0; /* also the slime's «thinking» dots */
-  --violet-300: #b9b0fa;
-  --violet-100: #ece9fe;
+  /* Neutral: plum, the rose's hue at very low chroma */
+  --n-950: #2b1624; /* ink */
+  --n-900: #3f2236;
+  --n-700: #5c3a52;
+  --n-600: #704a65; /* quiet text that still passes AA on --p-75 */
+  --n-500: #8a6380; /* field borders and «off» controls: ≥ 4.5:1 on white */
+  --n-400: #a88aa0;
+  --n-300: #d6c0cf;
+  --n-100: #efdfe8;
 
-  /* ── The only non-palette colours ─────────────────────────────────────── */
+  /* ── Aliases of the scales (old names; they follow the theme) ──────────── */
+  --rose-950: var(--p-950);
+  --rose-900: var(--p-900);
+  --rose-800: var(--p-800);
+  --rose-700: var(--p-700);
+  --rose-600: var(--p-600);
+  --rose-500: var(--p-500);
+  --rose-400: var(--p-400);
+  --rose-300: var(--p-300);
+  --rose-100: var(--p-100);
+  --rose-75: var(--p-75);
+  --rose-50: var(--p-50);
+  --violet-900: var(--a-900);
+  --violet-700: var(--a-700);
+  --violet-500: var(--a-500);
+  --violet-300: var(--a-300);
+  --violet-100: var(--a-100);
+  --plum-950: var(--n-950);
+  --plum-900: var(--n-900);
+  --plum-700: var(--n-700);
+  --plum-600: var(--n-600);
+  --plum-500: var(--n-500);
+  --plum-400: var(--n-400);
+  --plum-300: var(--n-300);
+  --plum-100: var(--n-100);
+
+  /* ── The only non-palette colours ───────────────────────────────────────── */
   --white: #ffffff;
   --red-700: #b3261e; /* real errors only; brick, kept apart from the rose */
   --red-100: #fdecea;
 
-  /* ── Roles ────────────────────────────────────────────────────────────── */
-  --bg: var(--rose-50);
+  /* ── Roles ──────────────────────────────────────────────────────────────── */
+  --bg: var(--p-50);
   --card: var(--white);
-  --subtle: var(--rose-50);
-  --subtle-2: var(--rose-75);
-  --border: var(--plum-100);
-  --border-strong: var(--plum-300);
-  --border-field: var(--plum-500); /* inputs and selects: 4.5:1 against white */
-  --border-hover: var(--rose-600); /* outlined buttons and selects on hover */
+  --subtle: var(--p-50);
+  --subtle-2: var(--p-75);
+  --border: var(--n-100);
+  --border-strong: var(--n-300);
+  --border-field: var(--n-500); /* inputs and selects: ≥ 4.5:1 against white */
+  --border-hover: var(--p-600); /* outlined buttons and selects on hover */
 
-  --ink: var(--plum-950);
-  --ink-2: var(--plum-700);
-  --ink-3: var(--plum-600);
+  --ink: var(--n-950);
+  --ink-2: var(--n-700);
+  --ink-3: var(--n-600);
   --on-dark: var(--white);
-  --on-dark-2: var(--rose-100);
+  --on-dark-2: var(--p-100);
 
-  --primary: var(--rose-700);
-  --primary-ink: var(--rose-900);
-  --primary-soft: var(--rose-100);
-  --accent: var(--violet-700);
-  --accent-ink: var(--violet-900);
-  --accent-bright: var(--violet-500);
-  --accent-soft: var(--violet-100);
+  --primary: var(--p-700);
+  --primary-ink: var(--p-900);
+  --primary-soft: var(--p-100);
+  --accent: var(--a-700);
+  --accent-ink: var(--a-900);
+  --accent-bright: var(--a-500);
+  --accent-soft: var(--a-100);
   --danger: var(--red-700);
   --danger-soft: var(--red-100);
 
-  /* Call to action («Hablar», «Siguiente»): a piece of the slime. A rose
-     slightly lighter than its body, lit from above, with wine ink. It is the
-     warmest, most saturated thing on a pale page, so it draws the eye without
-     the cold violet that used to clash with the pink. Ink stays ≥ 4.5:1 over
-     every stop (rest 5.2:1, hover 6.5:1, pressed 4.6:1).
-     «Detener» keeps the same pill in dark wine: told apart by value and icon. */
-  --cta: color-mix(in srgb, var(--rose-500) 65%, var(--rose-400));
-  --cta-hover: var(--rose-400);
-  --cta-press: var(--rose-500);
-  --cta-ink: var(--rose-950);
-  --cta-shine: linear-gradient(180deg, color-mix(in srgb, var(--white) 26%, transparent), transparent 62%);
-  --cta-rim: color-mix(in srgb, var(--rose-800) 30%, transparent);
-  --cta-glow: color-mix(in srgb, var(--rose-600) 55%, transparent);
-  --cta-stop: var(--primary-ink);
-  --cta-stop-hover: var(--rose-950);
+  /* Keyboard focus: a dark ring, ≥ 3:1 against every surface (WCAG 2.4.13). */
+  --focus: var(--a-700);
 
-  /* Charts: the agent's measures in rose, the person's / tools in violet */
-  --chart: var(--rose-500);
-  --chart-strong: var(--rose-700);
-  --chart-deep: var(--rose-900);
-  --chart-quiet: var(--plum-500);
+  /* Call to action («Hablar», «Siguiente»): a piece of the avatar. Here a rose
+     slightly lighter than the slime's body, lit from above, with wine ink: the
+     warmest thing on a pale page. Ink stays ≥ 4.5:1 over every stop (rest
+     5.2:1, hover 6.5:1, pressed 4.6:1). «Detener» keeps the same pill in a
+     dark tone with white ink: told apart by value and icon. */
+  --cta: color-mix(in srgb, var(--p-500) 65%, var(--p-400));
+  --cta-hover: var(--p-400);
+  --cta-press: var(--p-500);
+  --cta-ink: var(--p-950);
+  --cta-shine: linear-gradient(180deg, color-mix(in srgb, var(--white) 26%, transparent), transparent 62%);
+  --cta-rim: color-mix(in srgb, var(--p-800) 30%, transparent);
+  --cta-glow: color-mix(in srgb, var(--p-600) 55%, transparent);
+  --cta-stop: var(--primary-ink);
+  --cta-stop-hover: var(--p-950);
+
+  /* Charts: the agent's measures in the primary, the person's / tools in the accent */
+  --chart: var(--p-500);
+  --chart-strong: var(--p-700);
+  --chart-deep: var(--p-900);
+  --chart-quiet: var(--n-500);
 
   /* Code block (SoQL) */
-  --code-bg: var(--plum-900);
-  --code-ink: var(--rose-75);
-  --code-kw: var(--rose-300);
-  --code-fn: var(--violet-300);
+  --code-bg: var(--n-900);
+  --code-ink: var(--p-75);
+  --code-kw: var(--p-300);
+  --code-fn: var(--a-300);
   --code-str: var(--white);
 
   /* Translucent layers, derived from the scale */
   --glass: color-mix(in srgb, var(--white) 90%, transparent);
-  --scrim: color-mix(in srgb, var(--plum-950) 86%, transparent);
-  /* Pale blush to pale lilac: light enough for the rose body to stand out */
-  --stage-top: var(--rose-50);
-  --stage-bottom: var(--violet-100);
-  --stage-floor: color-mix(in srgb, var(--rose-700) 18%, transparent);
+  --scrim: color-mix(in srgb, var(--n-950) 86%, transparent);
+  /* Pale blush to pale orchid: light enough for the rose body to stand out */
+  --stage-top: var(--p-50);
+  --stage-bottom: var(--a-100);
+  --stage-floor: color-mix(in srgb, var(--p-700) 18%, transparent);
 
-  /* Chevron of native selects (stroke = --plum-700) */
+  /* Chevron of native selects (stroke = --n-700) */
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235c3a52' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 
   /* Live state colour: follows the engine status (set on <html data-status>).
-     --state must stay a plain var() to a hex: the slime reads it with
-     getComputedStyle and only accepts #rrggbb. */
-  --state: var(--rose-500);
-  --state-ink: var(--rose-800);
-  --state-soft: var(--rose-75);
+     --state stays a plain var() chain to a hex, so getComputedStyle returns
+     #rrggbb for scripts that read it. */
+  --state: var(--p-500);
+  --state-ink: var(--p-800);
+  --state-soft: var(--p-75);
 
   /* Type */
   --font-display: "Bricolage Grotesque Variable", "Segoe UI", system-ui, sans-serif;
@@ -154,10 +203,10 @@
   --r-lg: 22px;
   --r-pill: 999px;
 
-  --shadow-card: 0 1px 2px color-mix(in srgb, var(--plum-900) 5%, transparent),
-    0 14px 32px -16px color-mix(in srgb, var(--plum-900) 18%, transparent);
-  --shadow-float: 0 2px 6px color-mix(in srgb, var(--plum-900) 10%, transparent),
-    0 10px 24px -10px color-mix(in srgb, var(--plum-900) 24%, transparent);
+  --shadow-card: 0 1px 2px color-mix(in srgb, var(--n-900) 5%, transparent),
+    0 14px 32px -16px color-mix(in srgb, var(--n-900) 18%, transparent);
+  --shadow-float: 0 2px 6px color-mix(in srgb, var(--n-900) 10%, transparent),
+    0 10px 24px -10px color-mix(in srgb, var(--n-900) 24%, transparent);
 
   --ease: cubic-bezier(0.22, 0.8, 0.26, 1);
   /* Sine ease-in-out: starts and lands softly, never overshoots. For things that
@@ -165,13 +214,119 @@
   --ease-glide: cubic-bezier(0.37, 0, 0.63, 1);
 }
 
-/* Rose = the agent's side (ready, connecting, speaking): the slime itself.
-   Violet = the person's side and work in progress (listening, looking up,
-   renewing). Brick red = a real error. */
-:root[data-status="idle"] { --state: var(--rose-500); --state-ink: var(--rose-800); --state-soft: var(--rose-75); }
-:root[data-status="connecting"] { --state: var(--rose-700); --state-ink: var(--rose-800); --state-soft: var(--rose-75); }
-:root[data-status="listening"] { --state: var(--violet-500); --state-ink: var(--violet-700); --state-soft: var(--violet-100); }
-:root[data-status="thinking"] { --state: var(--violet-500); --state-ink: var(--violet-900); --state-soft: var(--violet-100); }
-:root[data-status="speaking"] { --state: var(--rose-600); --state-ink: var(--rose-900); --state-soft: var(--rose-100); }
-:root[data-status="renewing"] { --state: var(--violet-700); --state-ink: var(--violet-900); --state-soft: var(--violet-100); }
+/* ── «gato»: the cat slime ──────────────────────────────────────────────────
+   Primary: the lavender-grey body (#8f86a8 = --p-500) with its stripes
+   (#5e5577 = --p-700) and its eyes as the darkest ink (#2a2238 = --p-900).
+   Accent: the pink of the inner ears and cheeks (#f2b6c6 = --a-300), deepened
+   to raspberry for text and the focus ring. Neutrals: dusk lavender greys. */
+:root[data-theme="gato"] {
+  --p-950: #1c1726;
+  --p-900: #2a2238;
+  --p-800: #40375a;
+  --p-700: #5e5577;
+  --p-600: #736a8f;
+  --p-500: #8f86a8;
+  --p-400: #aaa2c2;
+  --p-300: #c8c2da;
+  --p-100: #e9e6f2;
+  --p-75: #f2f0f8;
+  --p-50: #faf9fd;
+
+  --a-900: #6e2541;
+  --a-700: #9a3f63;
+  --a-500: #d47f9d;
+  --a-300: #f2b6c6;
+  --a-100: #fce6ed;
+
+  --n-950: #221e2c;
+  --n-900: #322d3e;
+  --n-700: #4e4860;
+  --n-600: #605a72;
+  --n-500: #767087;
+  --n-400: #a29db0;
+  --n-300: #d1cdda;
+  --n-100: #ebe8f0;
+
+  /* The cat's body with a little more chroma than the fur: a grey-lavender
+     pill reads as disabled (greyed controls mean «off»), this one reads as lit.
+     Its eye colour is the ink. */
+  --cta: #9589b9;
+  --cta-hover: #a99fcc;
+  --cta-press: #887cae;
+  --cta-rim: color-mix(in srgb, var(--p-800) 32%, transparent);
+  --cta-glow: color-mix(in srgb, var(--p-700) 50%, transparent);
+  --stage-floor: color-mix(in srgb, var(--p-700) 20%, transparent);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%234e4860' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* ── «humano»: the 3D anime character ───────────────────────────────────────
+   Primary: the crimson of the cords and the eyes. Neutrals: the charcoal and
+   grey of the jacket, warmed a little so the page reads as paper, not steel.
+   Accent: cocoa from the hair over the peach of the skin, for a warm, human
+   person's side. The call to action is the jacket's charcoal with white ink
+   (the highest-contrast pill in any theme); «Detener» turns it crimson, the
+   one place where a strong red fills a button, because it means «stop». */
+:root[data-theme="humano"] {
+  --p-950: #380a15;
+  --p-900: #5a1224;
+  --p-800: #7a1a32;
+  --p-700: #9a2139;
+  --p-600: #b52d46;
+  --p-500: #cc4459;
+  --p-400: #df6f80;
+  --p-300: #eea7b1;
+  --p-100: #fae1e4;
+  --p-75: #fcedef;
+  --p-50: #fdf7f8;
+
+  --a-900: #3e2a21;
+  --a-700: #6c4b3d;
+  --a-500: #a47b67;
+  --a-300: #dcc1b1;
+  --a-100: #f6ebe4;
+
+  --n-950: #1d1b1c;
+  --n-900: #2d2a2c;
+  --n-800: #3b3739;
+  --n-700: #4a4547;
+  --n-600: #5c5759;
+  --n-500: #767072;
+  --n-400: #a09a9c;
+  --n-300: #d2cecf;
+  --n-100: #eae7e7;
+  --n-75: #f2f0ef;
+  --n-50: #f8f7f6;
+
+  /* Surfaces are the jacket's light greys, not tinted with the crimson. */
+  --bg: var(--n-50);
+  --subtle: var(--n-50);
+  --subtle-2: var(--n-75);
+  --border-hover: var(--n-700);
+  --focus: var(--p-600);
+
+  --cta: var(--n-900);
+  --cta-hover: var(--n-700);
+  --cta-press: var(--n-950);
+  --cta-ink: var(--white);
+  --cta-shine: linear-gradient(180deg, color-mix(in srgb, var(--white) 14%, transparent), transparent 62%);
+  --cta-rim: color-mix(in srgb, var(--n-950) 55%, transparent);
+  --cta-glow: color-mix(in srgb, var(--n-900) 45%, transparent);
+  --cta-stop: var(--p-800);
+  --cta-stop-hover: var(--p-900);
+
+  --stage-top: var(--n-50);
+  --stage-bottom: var(--a-100);
+  --stage-floor: color-mix(in srgb, var(--n-900) 16%, transparent);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%234a4547' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* Primary = the agent's side (ready, connecting, speaking): the avatar itself.
+   Accent = the person's side and work in progress (listening, looking up,
+   renewing). Brick red = a real error. Same rules in every theme. */
+:root[data-status="idle"] { --state: var(--p-500); --state-ink: var(--p-800); --state-soft: var(--p-75); }
+:root[data-status="connecting"] { --state: var(--p-700); --state-ink: var(--p-800); --state-soft: var(--p-75); }
+:root[data-status="listening"] { --state: var(--a-500); --state-ink: var(--a-700); --state-soft: var(--a-100); }
+:root[data-status="thinking"] { --state: var(--a-500); --state-ink: var(--a-900); --state-soft: var(--a-100); }
+:root[data-status="speaking"] { --state: var(--p-600); --state-ink: var(--p-900); --state-soft: var(--p-100); }
+:root[data-status="renewing"] { --state: var(--a-700); --state-ink: var(--a-900); --state-soft: var(--a-100); }
 :root[data-status="error"] { --state: var(--red-700); --state-ink: var(--red-700); --state-soft: var(--red-100); }

@@ -64,17 +64,28 @@ def seed_note(seed: ContextEnvelope | None) -> str:
 class RealtimeService:
     def __init__(self, engines: dict[str, RealtimeSessionPort], speech: SpeechSessionPort | None,
                  *, instructions: str, instructions_version: str, speech_configured: bool,
-                 default_voice_mode: str = "cloned") -> None:
+                 default_voice_mode: str = "cloned", default_engine: str | None = None) -> None:
         self._engines = engines
         self._speech = speech
         self._instructions = instructions
         self._version = instructions_version
         self._speech_ok = speech_configured
         self._default_mode = default_voice_mode
+        self._default_engine = default_engine
 
     def default_voice_mode(self) -> str:
-        """What the UI should select first: cloned only if synthesis is configured (D-20)."""
+        """What the UI should select first: cloned only if synthesis is configured (D-20).
+
+        The interface applies it only with an engine that supports the cloned voice
+        (``cloned_voice_engines``); with any other engine it keeps the engine voice.
+        """
         return "cloned" if self._speech_ok and self._default_mode == "cloned" else "engine"
+
+    def default_engine(self) -> str | None:
+        """Engine the UI selects first: the configured one if it is available, else the first available."""
+        if self._default_engine in self._engines:
+            return self._default_engine
+        return next(iter(self._engines), None)
 
     @property
     def instructions_version(self) -> str:

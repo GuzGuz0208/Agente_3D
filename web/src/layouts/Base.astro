@@ -19,7 +19,7 @@ const { title, description, fill = false } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="es-CO" data-status="idle">
+<html lang="es-CO" data-status="idle" data-theme="rosa">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -27,6 +27,33 @@ const { title, description, fill = false } = Astro.props;
     <meta name="theme-color" content="#fff7fa" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
+    <script is:inline>
+      // Theme of the chosen avatar (scripts/theme.ts), applied before the first
+      // paint so the page never flashes the default palette. Keep the key and
+      // the colours in sync with THEME_KEY and THEME_COLOR there.
+      (function () {
+        var colors = { rosa: "#fff7fa", gato: "#faf9fd", humano: "#f8f7f6" };
+        var theme = "rosa";
+        try {
+          var saved = localStorage.getItem("ips.theme");
+          if (saved && Object.prototype.hasOwnProperty.call(colors, saved)) theme = saved;
+        } catch (e) {}
+        document.documentElement.dataset.theme = theme;
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute("content", colors[theme]);
+        if (window.__themeSwap) return;
+        window.__themeSwap = true;
+        // The router replaces the attributes of <html> and the head on every
+        // swap: hand the live theme to the incoming page before it is shown.
+        document.addEventListener("astro:before-swap", function (event) {
+          var current = document.documentElement.dataset.theme || "rosa";
+          var next = event.newDocument;
+          next.documentElement.dataset.theme = current;
+          var nextMeta = next.querySelector('meta[name="theme-color"]');
+          if (nextMeta) nextMeta.setAttribute("content", colors[current] || colors.rosa);
+        });
+      })();
+    </script>
     <ClientRouter />
     <script is:inline>
       // The router replaces the attributes of <html> on every swap; restore the live status.

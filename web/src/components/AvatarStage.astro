@@ -16,14 +16,26 @@
  * On phones and upright tablets the stage is compact and the talk button moves
  * to the composer at the bottom edge (see Chat.astro), within reach of the thumb.
  *
+ * «Slime» has two looks with the same behaviour, «Rosado» and «Gato» (src/avatar/variant.ts):
+ * pressing «Slime» opens a small second level with one sample of each, right above the
+ * switch (beside it on a small phone stage). The look is stored in `ips.slime-look`,
+ * mirrored in `#avatar-stage[data-look]`, and a change while the slime is on screen
+ * remounts it at once (no orb entrance). The level closes after a choice, with Esc,
+ * with a click elsewhere, or when another mode is chosen, so it never stays over the slime.
+ *
+ * Palette: the site follows what is on the stage (scripts/theme.ts): Slime rosado →
+ * «rosa», Slime gato → «gato», Avatar 3D → «humano», each with the theme's own View
+ * Transition. The orb keeps whichever palette is on. At load a stored palette that does
+ * not match the stored character is corrected without animation.
+ *
  * «Jugar» (play mode, logic in scripts/play-mode.ts): the stage fills the screen,
  * the phone's tilt rolls the slime, its hits against the edges vibrate the phone
  * (Android), and the conversation goes on: talk/stop, mute and the subtitle stay
  * on the stage. It is offered only while the 3D character is on screen and never
  * starts on its own. «Salir del juego», Esc or leaving fullscreen restore everything.
  */
+import ChevronUp from "@lucide/astro/icons/chevron-up";
 import CircleDot from "@lucide/astro/icons/circle-dot";
-import Droplet from "@lucide/astro/icons/droplet";
 import Gamepad2 from "@lucide/astro/icons/gamepad-2";
 import Maximize from "@lucide/astro/icons/maximize";
 import Mic from "@lucide/astro/icons/mic";
@@ -61,9 +73,38 @@ import Orb from "./Orb.astro";
     </div>
 
     <div class="stage-mode" role="group" aria-label="Qué se muestra">
-      <button type="button" data-avatar-mode="slime" data-testid="avatar-mode-3d" aria-pressed="true" title="Mostrar el slime">
-        <Droplet aria-hidden="true" /> <span>Slime</span>
+      <button type="button" data-avatar-mode="slime" data-testid="avatar-mode-3d" aria-pressed="true" aria-expanded="false" aria-controls="slime-looks" title="Mostrar el slime y elegir cómo se ve">
+        <svg class="look-mark look-rosado" viewBox="0 0 32 32" aria-hidden="true">
+          <path class="look-body" d="M5 25.5C5 14.5 9.6 7 16 7s11 7.5 11 18.5c0 2-1.4 3-3.6 3H8.6C6.4 28.5 5 27.5 5 25.5Z" />
+          <ellipse class="look-eye" cx="12.6" cy="19" rx="1.5" ry="2" /><ellipse class="look-eye" cx="19.4" cy="19" rx="1.5" ry="2" />
+        </svg>
+        <svg class="look-mark look-gato" viewBox="0 0 32 32" aria-hidden="true">
+          <path class="look-body" d="M5 25.5c0-8 2.1-13.7 5.6-16.5L9.2 4.2c-.2-.9.7-1.5 1.4-.9l4 3.4a12 12 0 0 1 2.8 0l4-3.4c.7-.6 1.6 0 1.4.9L21.4 9C24.9 11.8 27 17.5 27 25.5c0 2-1.4 3-3.6 3H8.6C6.4 28.5 5 27.5 5 25.5Z" />
+          <path class="look-ear" d="M10.7 5.6 11.6 9l2-1.3Zm10.6 0L20.4 9l-2-1.3Z" />
+          <path class="look-stripe" d="M16 9.6v3M13.6 10.2l.6 2M18.4 10.2l-.6 2" />
+          <ellipse class="look-eye" cx="12.6" cy="19.5" rx="1.5" ry="2" /><ellipse class="look-eye" cx="19.4" cy="19.5" rx="1.5" ry="2" />
+        </svg>
+        <span>Slime</span>
+        <ChevronUp class="mode-more" size={16} aria-hidden="true" />
       </button>
+      <div class="slime-looks" id="slime-looks" data-testid="slime-looks" role="group" aria-label="Cómo se ve el slime" hidden>
+        <button type="button" data-slime-look="rosado" data-testid="slime-look-rosado" aria-pressed="true">
+          <svg class="look-swatch look-rosado" viewBox="0 0 32 32" aria-hidden="true">
+            <path class="look-body" d="M5 25.5C5 14.5 9.6 7 16 7s11 7.5 11 18.5c0 2-1.4 3-3.6 3H8.6C6.4 28.5 5 27.5 5 25.5Z" />
+            <ellipse class="look-eye" cx="12.6" cy="19" rx="1.5" ry="2" /><ellipse class="look-eye" cx="19.4" cy="19" rx="1.5" ry="2" />
+          </svg>
+          <span><span class="sr-only">Slime </span>Rosado</span>
+        </button>
+        <button type="button" data-slime-look="gato" data-testid="slime-look-gato" aria-pressed="false">
+          <svg class="look-swatch look-gato" viewBox="0 0 32 32" aria-hidden="true">
+            <path class="look-body" d="M5 25.5c0-8 2.1-13.7 5.6-16.5L9.2 4.2c-.2-.9.7-1.5 1.4-.9l4 3.4a12 12 0 0 1 2.8 0l4-3.4c.7-.6 1.6 0 1.4.9L21.4 9C24.9 11.8 27 17.5 27 25.5c0 2-1.4 3-3.6 3H8.6C6.4 28.5 5 27.5 5 25.5Z" />
+            <path class="look-ear" d="M10.7 5.6 11.6 9l2-1.3Zm10.6 0L20.4 9l-2-1.3Z" />
+            <path class="look-stripe" d="M16 9.6v3M13.6 10.2l.6 2M18.4 10.2l-.6 2" />
+            <ellipse class="look-eye" cx="12.6" cy="19.5" rx="1.5" ry="2" /><ellipse class="look-eye" cx="19.4" cy="19.5" rx="1.5" ry="2" />
+          </svg>
+          <span><span class="sr-only">Slime </span>Gato</span>
+        </button>
+      </div>
       <button type="button" data-avatar-mode="humano" data-testid="avatar-mode-human" aria-pressed="false" title="Mostrar el avatar 3D animado">
         <UserRound aria-hidden="true" /> <span>Avatar 3D</span>
       </button>
@@ -110,9 +151,12 @@ import Orb from "./Orb.astro";
 </section>
 
 <script>
+  import { pickSlimeLook, SLIME_LOOK_KEY, themeCorrection, themeFor, type SiteTheme } from "../avatar/variant";
+  import type { SlimeLookId } from "../avatar/types";
   import { hostAvatar, type AvatarHost } from "../scripts/avatar-host";
   import { bind, byId, esc, panel } from "../scripts/dom";
   import { startPlay, type PlaySession, type SensorStatus } from "../scripts/play-mode";
+  import { applyTheme, currentTheme, THEME_EVENT } from "../scripts/theme";
   import * as controller from "../voice/controller";
   import { getState, type ConsoleState } from "../voice/store";
   import type { EngineStatus } from "../voice/types";
@@ -187,9 +231,13 @@ import Orb from "./Orb.astro";
     let announced = "";
 
     const modes = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-avatar-mode]"));
+    const slimeButton = modes.find((b) => b.dataset.avatarMode === "slime") ?? null;
+    const looksTray = byId("slime-looks");
+    const lookButtons = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-slime-look]"));
     let avatar: AvatarHost | null = null;
     let canvasUsed = false;
     let character: Character = storedCharacter();
+    let look: SlimeLookId = pickSlimeLook();
     let entranceTimer: ReturnType<typeof setTimeout> | undefined;
 
     const playButton = byId<HTMLButtonElement>("btn-play");
@@ -209,16 +257,31 @@ import Orb from "./Orb.astro";
         canvas = fresh;
       }
       canvasUsed = true;
-      avatar = hostAvatar(stage, canvas);
+      const host = hostAvatar(stage, canvas);
+      avatar = host;
+      // A look swap hides the orb until the new slime is up (or has failed, and the orb is the fallback).
+      void host.ready.then(() => {
+        if (avatar === host) delete stage.dataset.swapping;
+      });
     };
 
-    /** One pressed button: the character on screen, or the orb. */
+    /** One pressed button: the character on screen, or the orb; and the look of the slime. */
     const pressModes = (): void => {
       const enabled = stage?.dataset.avatarEnabled === "true";
       for (const b of modes) {
         const mode = b.dataset.avatarMode;
         b.setAttribute("aria-pressed", String(mode === "off" ? !enabled : enabled && mode === character));
       }
+      for (const b of lookButtons) b.setAttribute("aria-pressed", String(b.dataset.slimeLook === look));
+      if (stage) stage.dataset.look = look;
+    };
+
+    /** The second level of «Slime»: the two looks. Only while the slime is on screen. */
+    const showLooks = (open: boolean): void => {
+      if (!looksTray || !slimeButton) return;
+      const can = open && stage?.dataset.avatarEnabled === "true" && character === "slime";
+      looksTray.hidden = !can;
+      slimeButton.setAttribute("aria-expanded", String(can));
     };
 
     const unmountAvatar = (): void => {
@@ -229,21 +292,106 @@ import Orb from "./Orb.astro";
       stage.dataset.avatar = "absent";
     };
 
+    /** Each choice takes a ticket; a deferred mount from an older choice sees it is stale and does nothing. */
+    let mountTicket = 0;
+
+    /** Calls `fn` once `done()` holds, checked every frame, or after `maxMs` at the latest. */
+    const waitFor = (done: () => boolean, maxMs: number, fn: () => void): void => {
+      let fired = false;
+      const fire = (): void => {
+        if (fired) return;
+        fired = true;
+        clearTimeout(cap);
+        fn();
+      };
+      const cap = setTimeout(fire, maxMs);
+      const step = (): void => {
+        if (fired) return;
+        if (done()) fire();
+        else requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    };
+
+    /**
+     * Switches the site palette (scripts/theme.ts; null keeps it, as for the orb), then runs `swap`
+     * once the new palette is in the page and `then` once its View Transition is over: at once when
+     * nothing animates. Building a WebGL scene during the transition would stall it until the
+     * browser gives up on it, so the old character leaves with the sweep and the new one is
+     * mounted after it.
+     */
+    const withTheme = (theme: SiteTheme | null, swap: () => void, then: () => void): void => {
+      const html = document.documentElement;
+      let swapped = false;
+      const doSwap = (): void => {
+        if (swapped) return;
+        swapped = true;
+        document.removeEventListener(THEME_EVENT, doSwap);
+        swap();
+      };
+      document.addEventListener(THEME_EVENT, doSwap);
+      if (theme) applyTheme(theme);
+      const animating = (): boolean => html.dataset.themeShift !== undefined;
+      if (!animating()) {
+        doSwap();
+        then();
+        return;
+      }
+      waitFor(() => !animating(), 1500, () => {
+        doSwap();
+        then();
+      });
+    };
+
     /** `announce` is false on first paint: only a change made by the person is an event. */
     const setAvatarEnabled = (enabled: boolean, announce: boolean): void => {
       if (!stage) return;
+      const ticket = ++mountTicket;
       stage.dataset.avatarEnabled = String(enabled);
       stage.dataset.character = character;
       pressModes();
-      if (enabled) mountAvatar();
-      else unmountAvatar();
-      if (!announce) return;
-      try {
-        localStorage.setItem(AVATAR_KEY, enabled ? "on" : "off");
-      } catch {
-        // Private mode: the choice lasts for this page only.
+      if (announce) {
+        try {
+          localStorage.setItem(AVATAR_KEY, enabled ? "on" : "off");
+        } catch {
+          // Private mode: the choice lasts for this page only.
+        }
       }
-      window.dispatchEvent(new CustomEvent("avatar:toggle", { detail: { enabled } }));
+      const tell = (): void => {
+        if (announce) window.dispatchEvent(new CustomEvent("avatar:toggle", { detail: { enabled } }));
+      };
+      if (!enabled) {
+        // The orb keeps whichever palette is on.
+        delete stage.dataset.swapping;
+        if (!avatar && stage.dataset.entrance === "eat") delete stage.dataset.entrance;
+        unmountAvatar();
+        tell();
+        return;
+      }
+      // From the orb: the palette sweeps first (the orb stays), then the character arrives.
+      withTheme(
+        announce ? themeFor(character, look) : null,
+        () => undefined,
+        () => {
+          if (ticket !== mountTicket || stage.dataset.avatarEnabled !== "true") return;
+          mountAvatar();
+          tell();
+        },
+      );
+    };
+
+    /** Swaps the character or the look on screen: the old one leaves with the palette sweep, the new one comes after. */
+    const swapOnScreen = (): void => {
+      const ticket = ++mountTicket;
+      withTheme(
+        themeFor(character, look),
+        () => {
+          if (ticket === mountTicket) unmountAvatar();
+        },
+        () => {
+          if (ticket === mountTicket && stage?.dataset.avatarEnabled === "true") mountAvatar();
+        },
+      );
     };
 
     /** Slime or the animated 3D avatar; remembered in this browser. From the orb, it is announced like before. */
@@ -275,22 +423,80 @@ import Orb from "./Orb.astro";
         return;
       }
       if (!changed || !stage) return;
-      unmountAvatar();
       stage.dataset.character = character;
       pressModes();
-      mountAvatar();
+      swapOnScreen();
+    };
+
+    /** Rosado or gato. On screen it is swapped without the orb entrance (and without showing the orb). */
+    const chooseLook = (next: SlimeLookId): void => {
+      try {
+        localStorage.setItem(SLIME_LOOK_KEY, next);
+        // A ?slime= in the address would win over the stored choice on the next mount.
+        const url = new URL(location.href);
+        if (url.searchParams.has("slime")) {
+          url.searchParams.delete("slime");
+          history.replaceState(history.state, "", url);
+        }
+      } catch {
+        // Private mode: the look lasts for this page only.
+      }
+      const changed = next !== look;
+      look = next;
+      pressModes();
+      if (character !== "slime" || stage?.dataset.avatarEnabled !== "true") {
+        chooseCharacter("slime");
+        return;
+      }
+      if (!changed || !stage) return;
+      stage.dataset.swapping = "";
+      swapOnScreen();
     };
 
     for (const b of modes) {
       b.addEventListener("click", () => {
         const mode = b.dataset.avatarMode;
         if (mode === "off") {
+          showLooks(false);
           if (stage?.dataset.avatarEnabled !== "false") setAvatarEnabled(false, true);
-        } else if (mode === "slime" || mode === "humano") {
+        } else if (mode === "slime") {
+          // From another mode: show the slime and offer its looks. Already on screen: open or close them.
+          const onScreen = stage?.dataset.avatarEnabled === "true" && character === "slime";
+          if (!onScreen) chooseCharacter("slime");
+          showLooks(!onScreen || looksTray?.hidden === true);
+        } else if (mode === "humano") {
+          showLooks(false);
           chooseCharacter(mode);
         }
       });
     }
+    for (const b of lookButtons) {
+      b.addEventListener("click", () => {
+        const next = b.dataset.slimeLook;
+        if (next !== "rosado" && next !== "gato") return;
+        chooseLook(next);
+        // Chosen: the level folds away so it never stays over the slime; focus goes back to «Slime».
+        showLooks(false);
+        slimeButton?.focus({ preventScroll: true });
+      });
+    }
+    looksTray?.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation(); // Esc here only closes the level; it must not also cut the voice
+      showLooks(false);
+      slimeButton?.focus({ preventScroll: true });
+    });
+    const onOutside = (e: PointerEvent): void => {
+      if (!looksTray || looksTray.hidden) return;
+      const target = e.target as Node | null;
+      if (target && (looksTray.contains(target) || slimeButton?.contains(target))) return;
+      showLooks(false);
+    };
+    document.addEventListener("pointerdown", onOutside);
+
+    // At load the stored palette must match what is on the stage (the orb keeps any palette).
+    const fix = themeCorrection(currentTheme(), character, look, avatarWanted());
+    if (fix) applyTheme(fix, { animate: false });
     setAvatarEnabled(avatarWanted(), false);
 
     const setZoom = (value: number): void => {
@@ -328,6 +534,7 @@ import Orb from "./Orb.astro";
     const startPlaying = (): void => {
       const el = stage;
       if (play || !el || !avatar) return;
+      showLooks(false);
       zoomBeforePlay = zoom;
       setZoom(1);
       play = startPlay(el, avatar, {
@@ -420,6 +627,7 @@ import Orb from "./Orb.astro";
       clearTimeout(entranceTimer);
       avatar?.dispose();
       document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onOutside);
     };
   });
 </script>
@@ -506,6 +714,12 @@ import Orb from "./Orb.astro";
   }
 
   #avatar-stage[data-avatar="ready"] .fallback {
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  /* Rosado <-> gato: the orb does not flash up between the two slimes. */
+  #avatar-stage[data-swapping] .fallback {
     opacity: 0;
     visibility: hidden;
   }
@@ -684,6 +898,123 @@ import Orb from "./Orb.astro";
   .stage-mode button[aria-pressed="true"] {
     background: var(--primary);
     color: var(--on-dark);
+  }
+
+  /* ── Looks of the slime ────────────────────────────────────────────────────
+     Little portraits of the two slimes, on «Slime» (the current one) and in its second level.
+     Fixed colours on purpose: they show the characters themselves, whatever palette is on.
+     A white rim keeps them clear on the filled «Slime» button and on the glass. */
+
+  .look-mark,
+  .look-swatch {
+    flex: none;
+    overflow: visible;
+  }
+
+  .look-mark {
+    width: 1.4rem;
+    height: 1.4rem;
+  }
+
+  .look-swatch {
+    width: 1.85rem;
+    height: 1.85rem;
+  }
+
+  .look-body {
+    stroke: var(--white);
+    stroke-width: 2.2;
+    stroke-linejoin: round;
+    paint-order: stroke;
+  }
+
+  .look-rosado .look-body { fill: #e5507d; }
+  .look-rosado .look-eye { fill: #3a0a1e; }
+  .look-gato .look-body { fill: #8f86a8; }
+  .look-gato .look-ear { fill: #f2b6c6; }
+  .look-gato .look-eye { fill: #2a2238; }
+
+  .look-gato .look-stripe {
+    fill: none;
+    stroke: #5e5577;
+    stroke-width: 1.3;
+    stroke-linecap: round;
+  }
+
+  /* «Slime» wears the look that is chosen. */
+  #avatar-stage:not([data-look="gato"]) .look-mark.look-gato,
+  #avatar-stage[data-look="gato"] .look-mark.look-rosado {
+    display: none;
+  }
+
+  /* The chevron says «Slime» has a second level; it only shows while the slime is on screen. */
+  .stage-mode :global(.mode-more) {
+    flex: none;
+    margin-inline: calc(var(--s-1) * -1) calc(var(--s-1) * -0.5);
+    opacity: 0.85;
+    transition: rotate 0.2s var(--ease);
+  }
+
+  .stage-mode button[aria-pressed="false"] :global(.mode-more) {
+    display: none;
+  }
+
+  .stage-mode button[aria-expanded="true"] :global(.mode-more) {
+    rotate: 180deg;
+  }
+
+  .slime-looks {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + var(--s-2));
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--r-pill);
+    background: var(--glass);
+    box-shadow: var(--shadow-float);
+    backdrop-filter: blur(6px);
+    transform-origin: 1.5rem 100%;
+    transition:
+      opacity 0.18s var(--ease),
+      translate 0.18s var(--ease),
+      scale 0.18s var(--ease);
+  }
+
+  .slime-looks[hidden] {
+    display: none;
+  }
+
+  /* It unfolds from «Slime», the button that opened it. */
+  @starting-style {
+    .slime-looks {
+      opacity: 0;
+      translate: 0 6px;
+      scale: 0.96;
+    }
+  }
+
+  .stage-mode .slime-looks button {
+    padding: 0 var(--s-4) 0 var(--s-2);
+    color: var(--ink);
+  }
+
+  .stage-mode .slime-looks button:hover:not([aria-pressed="true"]) {
+    background: var(--subtle-2);
+  }
+
+  /* The chosen look: a ring in the palette's primary, quieter than the filled first level. */
+  .stage-mode .slime-looks button[aria-pressed="true"] {
+    background: var(--primary-soft);
+    color: var(--primary-ink);
+    box-shadow: inset 0 0 0 2px var(--primary);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .slime-looks,
+    .stage-mode :global(.mode-more) {
+      transition: none;
+    }
   }
 
   .subtitle {
@@ -884,6 +1215,29 @@ import Orb from "./Orb.astro";
   @container stage (max-width: 460px) and (max-height: 320px) and (min-height: 230px) {
     .stage-mode {
       flex-direction: column;
+    }
+  }
+
+  /* Narrow stage (phones): the slime fills the stage, so the looks open in place of «Avatar 3D» and
+     «Orbe» instead of floating over it: the switch keeps its size and shape, row or column, and
+     «Slime» (with its chevron turned) stays first. Icon-only, like the modes. */
+  @container stage (max-width: 460px) {
+    .slime-looks {
+      position: static;
+      flex-direction: inherit;
+      padding: 0;
+      background: none;
+      box-shadow: none;
+      backdrop-filter: none;
+      transform-origin: 0 0;
+    }
+
+    .stage-mode:has(> .slime-looks:not([hidden])) > button:not([data-avatar-mode="slime"]) {
+      display: none;
+    }
+
+    .stage-mode .slime-looks button {
+      padding: 0;
     }
   }
 

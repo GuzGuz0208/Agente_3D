@@ -11,8 +11,12 @@
  *
  * To compare, open the console once with `?personaje=humano` (or `?personaje=slime`);
  * the choice is remembered in this browser.
+ *
+ * The slime has two looks with the same behaviour, `rosado` and `gato` (`variant.ts`):
+ * `opts.look`, then `?slime=gato`, then `localStorage["ips.slime-look"]`.
  */
 import type { AvatarCharacter, AvatarHandle, MountAvatarOptions } from "./types";
+import { pickSlimeLook } from "./variant";
 
 export { AvatarError } from "./types";
 export type {
@@ -25,7 +29,10 @@ export type {
   EatOrbOptions,
   MountAvatarOptions,
   OrbBite,
+  SlimeLookId,
 } from "./types";
+export { pickSlimeLook, SLIME_LOOK_KEY, themeFor } from "./variant";
+export type { SiteTheme } from "./variant";
 // Re-exported so the host reaches it through the same lazily loaded module (it must work without src/avatar/).
 export { expressionFor } from "./expression";
 export type { AffectReading, ExpressionInput } from "./expression";
@@ -65,5 +72,5 @@ export async function mountAvatar(canvas: HTMLCanvasElement, opts: MountAvatarOp
     return mountHuman(canvas, opts);
   }
   const { mountSlime } = await import("./slime");
-  return mountSlime(canvas, opts);
+  return mountSlime(canvas, { ...opts, look: pickSlimeLook(opts.look) });
 }

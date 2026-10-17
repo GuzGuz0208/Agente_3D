@@ -1,9 +1,13 @@
 /**
  * The orb: a canvas visualiser of the engine status.
  *
- * A ring of radial bars around a glowing core. Tone (rose or violet) and motion change with the
+ * A ring of radial bars around a glowing core. Tone and motion change with the
  * status; every transcript event adds a small pulse, so it visibly reacts to
  * speech. With prefers-reduced-motion it draws one still frame per status.
+ *
+ * Its colours come from the active theme's scales in tokens.css (primary
+ * --p-*, accent --a-*); when <html data-theme> changes it re-reads them and
+ * glides to the new palette.
  */
 import { getState, subscribe } from "../voice/store";
 import type { EngineStatus } from "../voice/types";
@@ -23,30 +27,20 @@ interface Mood {
   jitter: number;
 }
 
-type Tone =
-  | "rose-700"
-  | "rose-600"
-  | "rose-500"
-  | "rose-400"
-  | "rose-300"
-  | "violet-700"
-  | "violet-500"
-  | "violet-300"
-  | "plum-900"
-  | "red-700";
+type Tone = "p-700" | "p-600" | "p-500" | "p-400" | "p-300" | "a-700" | "a-500" | "a-300" | "n-900" | "red-700";
 
 /** Shape of a mood; its two colours are token names resolved from tokens.css at mount. */
 type MoodSpec = Omit<Mood, "a" | "b"> & { a: Tone; b: Tone };
 
-/** Rose (the slime) for the agent's side, violets for the person's side and for waiting. */
+/** The primary (the avatar) for the agent's side, the accent for the person's side and for waiting. */
 const SPECS: Record<EngineStatus, MoodSpec> = {
-  idle: { a: "rose-500", b: "violet-300", energy: 0.1, spin: 0.12, sweep: 0, jitter: 0 },
-  connecting: { a: "rose-400", b: "rose-700", energy: 0.3, spin: 2.4, sweep: 1, jitter: 0 },
-  listening: { a: "violet-500", b: "rose-400", energy: 0.34, spin: 0.3, sweep: 0, jitter: 0.9 },
-  thinking: { a: "violet-300", b: "violet-700", energy: 0.36, spin: 3.2, sweep: 1, jitter: 0.1 },
-  speaking: { a: "rose-600", b: "violet-500", energy: 0.85, spin: 0.5, sweep: 0, jitter: 0.35 },
-  renewing: { a: "violet-700", b: "rose-300", energy: 0.3, spin: -2.6, sweep: 1, jitter: 0 },
-  error: { a: "red-700", b: "plum-900", energy: 0.04, spin: 0, sweep: 0, jitter: 0 },
+  idle: { a: "p-500", b: "a-300", energy: 0.1, spin: 0.12, sweep: 0, jitter: 0 },
+  connecting: { a: "p-400", b: "p-700", energy: 0.3, spin: 2.4, sweep: 1, jitter: 0 },
+  listening: { a: "a-500", b: "p-400", energy: 0.34, spin: 0.3, sweep: 0, jitter: 0.9 },
+  thinking: { a: "a-300", b: "a-700", energy: 0.36, spin: 3.2, sweep: 1, jitter: 0.1 },
+  speaking: { a: "p-600", b: "a-500", energy: 0.85, spin: 0.5, sweep: 0, jitter: 0.35 },
+  renewing: { a: "a-700", b: "p-300", energy: 0.3, spin: -2.6, sweep: 1, jitter: 0 },
+  error: { a: "red-700", b: "n-900", energy: 0.04, spin: 0, sweep: 0, jitter: 0 },
 };
 
 /** Reads a `--token` hex colour from the stylesheet, so the palette has one source. */
@@ -77,7 +71,7 @@ export function mountOrb(): void {
   const ctx = canvas?.getContext("2d");
   if (!canvas || !ctx) return;
   host.dataset.ready = "1";
-  const MOODS = resolveMoods();
+  let MOODS = resolveMoods();
 
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
   const current: Mood = { ...MOODS[getState().status] };
@@ -195,6 +189,13 @@ export function mountOrb(): void {
     if (slices.has("transcript")) pulse = 1;
     if (reduced.matches) draw(0);
   });
+
+  // A new palette: re-read the tokens; draw() eases the colours over a few frames.
+  new MutationObserver(() => {
+    MOODS = resolveMoods();
+    target = MOODS[getState().status];
+    if (reduced.matches) draw(0);
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
   new ResizeObserver(resize).observe(host);
   reduced.addEventListener("change", run);

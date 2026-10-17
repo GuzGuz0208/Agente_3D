@@ -5,6 +5,40 @@ Este proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+### Added — Temas por avatar, slime gato y ánimo visible (rama `feat/slime-rosado`, 2026-10-16)
+- **Un tema de color por personaje** (`web/src/scripts/theme.ts`, `tokens.css`): `rosa` (slime rosado),
+  `gato` (gris lavanda con el rosa de sus orejas) y `humano` (Avatar 3D: carbón con acento carmesí). Al
+  elegir personaje la paleta se abre en círculo desde el escenario con una View Transition (~0,6 s;
+  instantánea con movimiento reducido); el Orbe conserva la paleta activa. Se aplica antes del primer
+  pintado y sobrevive a la navegación. Roles de color al estilo Material Design 3; contraste AA medido en
+  los tres temas (150 pares).
+- **Slime gato** dentro de la categoría Slime (`cat.ts`, `variant.ts`): gelatina gris lavanda con marcas
+  atigradas, orejas redondeadas que expresan el estado, cola con onda que duerme enroscada, naricita,
+  bigotes y boca «ω». Tiene todo lo del rosado (caras, gestos, baba lavanda, modo juego, comer el orbe).
+  Selector de variante Rosado / Gato con retratos al pulsar «Slime»; se recuerda (`ips.slime-look`).
+- **Indicador de ánimo** en `/consola` (`MoodIndicator.astro`, `mood-indicator.ts`): punto de luz con la
+  emoción en lenguaje llano («Te noto con prisa»), «¿Por qué?» con las señales, «No es así» (también
+  devuelve la cara del avatar a neutral) y «Ocultar el ánimo». Basado en NN/g, Microsoft HAX, Google PAIR,
+  WCAG 1.4.1 y el AI Act art. 50; sin porcentajes de confianza no calibrados.
+- **Leyenda de luces y caras** en `/admin` con «Probar» para ver cada lectura en vivo.
+
+### Changed — Audio y motor por defecto (2026-10-16)
+- Micrófono con `echoCancellation: "all"` (cancela también la voz del agente que suena por Web Audio) y
+  `voiceIsolation`, con reintento a las restricciones anteriores si el navegador las rechaza.
+- OpenAI: reducción de ruido `far_field` por defecto (micrófono de PC o de sala).
+- **Regla de 1 s también en Gemini:** el servidor ya no corta por cualquier sonido
+  (`GEMINI_ACTIVITY_HANDLING=NO_INTERRUPTION`); el navegador baja el volumen, confirma la voz a 1,3 s, corta
+  y reenvía el audio de la pregunta. Probado con Gemini real: ruido y voz corta no cortan; una pregunta
+  larga corta y se responde completa (5 de 6 intentos; el fallido, con red inestable).
+- **Gemini es el motor por defecto** para pruebas (`VOICE_DEFAULT_ENGINE`, anunciado en `/health`).
+  Para la demo con OpenAI y voz clonada: `VOICE_DEFAULT_ENGINE=openai` en el proyecto de Vercel.
+
+### Changed — Interfaz
+- «¿Cómo funciona?» pasa a botón de texto discreto; ningún botón queda en violeta saturado (el acento del
+  tema rosa es ahora orquídea apagada).
+- Comer el orbe: el orbe rodea los ojos y entra por la boca; en modo juego el slime respeta la barra
+  inferior; en celular el selector se aparta durante la entrada.
+
 ### Added — Jugar con el slime (rama `feat/slime-rosado`, 2026-10-16)
 - **Gestos sobre el slime** (`web/src/avatar/gestures.ts`, lógica pura con pruebas): tocar = risa o
   «¡ay!»; sobar (vaivenes) = ojos «^ ^», mejillas rosadas y ronroneo; mantener 0,8 s = se derrite en

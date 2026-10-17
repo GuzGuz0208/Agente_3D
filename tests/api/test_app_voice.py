@@ -155,6 +155,29 @@ def test_speech_session_503_when_not_configured():
         assert r.status_code == 503 and r.json()["error"]["code"] == "SYNTH_UNAVAILABLE"
 
 
+def test_health_announces_the_default_engine():
+    c = _container()
+    engines = c.realtime._engines  # type: ignore[attr-defined]
+    for configured, expected in (("gemini", "gemini"), ("openai", "openai"), ("missing", "openai")):
+        c.realtime = RealtimeService(engines, FakeSpeechSession(), instructions="x", instructions_version="v",
+                                     speech_configured=True, default_engine=configured)
+        with TestClient(create_app(lambda: c)) as tc:
+            assert tc.get("/health").json()["default_engine"] == expected
+
+
+def test_settings_defaults_for_pc_microphone_and_gemini_tests(monkeypatch):
+    from config import Settings
+
+    for name in ("VOICE_DEFAULT_ENGINE", "REALTIME_NOISE_REDUCTION", "GEMINI_ACTIVITY_HANDLING"):
+        monkeypatch.delenv(name, raising=False)
+    s = Settings(_env_file=None)
+    assert s.voice_default_engine == "gemini"
+    assert s.realtime_noise_reduction == "far_field"
+    assert s.gemini_activity_handling == "NO_INTERRUPTION"
+    monkeypatch.setenv("VOICE_DEFAULT_ENGINE", "openai")
+    assert Settings(_env_file=None).voice_default_engine == "openai"
+
+
 def test_analysis_drops_audio_without_consent(client):
     h = _auth(client)
     clip = base64.b64encode(b"RIFF....WAVE").decode()

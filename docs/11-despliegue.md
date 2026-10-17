@@ -44,7 +44,14 @@ sin CORS). **No hay WebSocket propio, base de datos ni modelo de embeddings**: e
 | `SESSION_SIGNING_KEY` | api | Firma de la sesión anónima (32 bytes aleatorios) |
 | `ALLOWED_ORIGINS` | api | Origen(es) del web para CORS |
 | `LANGSMITH_API_KEY`, `LANGSMITH_TRACING` | api | Trazas y feedback (opcional) |
+| `VOICE_DEFAULT_ENGINE` | api | Motor que la interfaz elige al cargar (`GET /health` → `default_engine`). Por omisión **`gemini`**, para que las pruebas no gasten la cuota de OpenAI. **El día de la demo final: `openai`** (vuelve también la voz clonada por defecto, si `CARTESIA_API_KEY` está). El selector de /admin sigue ofreciendo los dos motores |
+| `REALTIME_NOISE_REDUCTION` | api | Reducción de ruido de entrada de OpenAI. Por omisión `far_field` (micrófono del PC o portátil); `near_field` con diadema o audífonos; vacío la apaga |
+| `GEMINI_ACTIVITY_HANDLING` | api | Por omisión `NO_INTERRUPTION`: Gemini no corta al agente por cualquier sonido y el navegador aplica la regla de 1 s ([08](08-contrato-voz-en-vivo.md) §6). `START_OF_ACTIVITY_INTERRUPTS` devuelve la interrupción al servidor (cualquier voz corta al instante) |
 | `PUBLIC_API_URL` | web | URL base de la api (se fija en la compilación) |
+
+**Volver a OpenAI el día de la demo:** `npx vercel env add VOICE_DEFAULT_ENGINE` con el valor
+`openai` en el proyecto api (local: `VOICE_DEFAULT_ENGINE=openai` en `.env`) y redesplegar la api.
+No hace falta recompilar el web: lo lee de `/health` al cargar la página.
 
 Lectura de variables **solo** en `src/config.py` (R-05); `LANGSMITH_*` las lee la librería
 (excepción documentada). Los worktrees locales usan su propio `.env` (ignorado por git).

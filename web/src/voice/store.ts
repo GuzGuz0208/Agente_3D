@@ -113,6 +113,8 @@ export interface ConsoleState {
   tools: ToolEntry[];
   evidence: Record<string, EvidenceEnvelope>;
   affect: AffectEntry[];
+  /** `utterance_id` of a reading the person rejected with «No es así»: face and glow ignore it. */
+  dismissedAffect: string | null;
   style: StyleDecision;
   /** Consecutive inferred signals pointing at a style that is not active yet. */
   styleSignal: { hint: string; count: number; needed: number } | null;
@@ -145,7 +147,9 @@ function initialState(): ConsoleState {
   return {
     running: false,
     status: "idle",
-    engine: "openai",
+    // Gemini while testing, so the OpenAI quota is kept for the final rehearsal. The backend's
+    // `default_engine` (VOICE_DEFAULT_ENGINE) replaces it before the first session.
+    engine: "gemini",
     model: "",
     simulated: true,
     conversation_id: null,
@@ -154,6 +158,7 @@ function initialState(): ConsoleState {
     tools: [],
     evidence: {},
     affect: [],
+    dismissedAffect: null,
     style: NEUTRAL_STYLE,
     styleSignal: null,
     turns: [],
@@ -499,6 +504,12 @@ export function markUnverified(utterance_id: string, numbers: number[]): void {
 
 export function putEvidence(env: EvidenceEnvelope): void {
   state.evidence[env.evidence.query_fingerprint] = env;
+}
+
+/** «No es así»: the reading stays in the history, but nothing reacts to it any more. */
+export function dismissAffect(utteranceId: string): void {
+  state.dismissedAffect = utteranceId;
+  notify("affect");
 }
 
 export function pushAffect(entry: AffectEntry): void {

@@ -1,7 +1,8 @@
 /**
  * MicTap: the one capture path for every engine (docs/08 §4).
  *
- * getUserMedia (echo cancellation, noise suppression, auto gain) → low-pass →
+ * getUserMedia (echo cancellation of all system audio, noise suppression, voice
+ * isolation where it exists, auto gain) → low-pass →
  * AudioWorklet → PCM16 mono, resampled on the main thread to the rate each
  * consumer asks for (16 kHz for Gemini Live, 24 kHz for OpenAI Realtime).
  *
@@ -129,6 +130,12 @@ export class MicTap {
    * what the 30 s ring still holds. Null when the window is empty.
    */
   slice(t0: number, t1: number): Blob | null {
+    const pcm = this.slicePcm(t0, t1);
+    return pcm ? encodeWav(pcm, RING_RATE) : null;
+  }
+
+  /** PCM16 mono 16 kHz of the session-clock window [t0, t1], clamped to the ring. Null when empty. */
+  slicePcm(t0: number, t1: number): Int16Array | null {
     if (this.ringFilled === 0) return null;
     const ringStartT = this.ringEndT - (this.ringFilled / RING_RATE) * 1000;
     const from = Math.max(t0, ringStartT);
@@ -144,7 +151,7 @@ export class MicTap {
       pcm[i] = this.ring[read] ?? 0;
       read = (read + 1) % size;
     }
-    return encodeWav(pcm, RING_RATE);
+    return pcm;
   }
 
   // ── Internals ──────────────────────────────────────────────────────────────
@@ -155,11 +162,13 @@ export class MicTap {
     }
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
-      });
+      stream = await openMicrophone();
     } catch {
       throw new MicError("MIC_DENIED", "No hay acceso al micrófono. Habilítalo en el navegador o usa el modo texto.");
+    }
+    if (import.meta.env.DEV) {
+      // What the browser really applied (echo cancellation "all" needs Chrome/Edge 141+).
+      console.info("[mic] settings", stream.getAudioTracks()[0]?.getSettings());
     }
     const context = sharedAudioContext();
     try {
@@ -240,6 +249,36 @@ export class MicTap {
     this.voiced = rms > threshold;
     if (this.voiced) this.voicedAt = t;
     else this.noiseFloor = this.noiseFloor * 0.98 + rms * 0.02;
+  }
+}
+
+/**
+ * Capture constraints for a PC / laptop microphone with the agent on the speakers.
+ *
+ * The agent plays through Web Audio, not an RTCPeerConnection, and `echoCancellation: true`
+ * only guarantees cancelling PeerConnection audio. `"all"` (Chrome/Edge 141+) asks to cancel
+ * everything the system plays; older browsers treat any truthy value as `true`.
+ * `voiceIsolation` is ignored where it does not exist.
+ */
+export const MIC_CONSTRAINTS = {
+  echoCancellation: "all",
+  noiseSuppression: true,
+  autoGainControl: true,
+  voiceIsolation: true,
+  channelCount: 1,
+} as unknown as MediaTrackConstraints;
+/** The constraints used before, for a browser that rejects the new ones. */
+export const MIC_CONSTRAINTS_BASIC: MediaTrackConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 };
+
+/** Opens the microphone; if the browser rejects the new constraints it retries with the previous ones. */
+export async function openMicrophone(media: Pick<MediaDevices, "getUserMedia"> = navigator.mediaDevices): Promise<MediaStream> {
+  try {
+    return await media.getUserMedia({ audio: MIC_CONSTRAINTS });
+  } catch (err) {
+    const name = err instanceof Error || (typeof DOMException !== "undefined" && err instanceof DOMException) ? err.name : "";
+    // A permission error is final; only a constraint error is worth a second try.
+    if (name !== "OverconstrainedError" && name !== "TypeError" && name !== "NotSupportedError") throw err;
+    return media.getUserMedia({ audio: MIC_CONSTRAINTS_BASIC });
   }
 }
 
