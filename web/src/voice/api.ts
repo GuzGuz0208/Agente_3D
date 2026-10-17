@@ -58,14 +58,27 @@ async function ensureSession(): Promise<string | null> {
   return sessionPending;
 }
 
-/** Authenticated call to the backend: adds `X-Session-Token` and a deadline. */
+/**
+ * Authenticated call to the backend: adds `X-Session-Token` and a deadline. A 401
+ * (SESSION_EXPIRED: the 2 h token ran out, or the backend's signing key changed) drops
+ * the token and repeats the call once with a new one, within the same deadline, so an
+ * expired session never reaches the agent as "the source is unavailable".
+ */
 export async function apiFetch(path: string, init: RequestInit = {}, timeoutMs = TOOL_DEADLINE_MS): Promise<Response> {
-  const token = await ensureSession();
-  const headers = new Headers(init.headers);
-  headers.set("Content-Type", "application/json");
-  if (token) headers.set("X-Session-Token", token);
-  const res = await fetch(`${API_URL}${path}`, { ...init, headers, signal: AbortSignal.timeout(timeoutMs) });
-  if (res.status === 401) sessionToken = null; // SESSION_EXPIRED: next call asks for a new token
+  const signal = AbortSignal.timeout(timeoutMs);
+  const send = async (): Promise<Response> => {
+    const token = await ensureSession();
+    const headers = new Headers(init.headers);
+    headers.set("Content-Type", "application/json");
+    if (token) headers.set("X-Session-Token", token);
+    return fetch(`${API_URL}${path}`, { ...init, headers, signal });
+  };
+  let res = await send();
+  if (res.status === 401) {
+    sessionToken = null;
+    res = await send();
+    if (res.status === 401) sessionToken = null;
+  }
   return res;
 }
 
@@ -178,8 +191,8 @@ export async function requestRealtimeSession(body: Record<string, unknown>): Pro
   if (USING_MOCKS) throw new ApiError(503, "ENGINE_CONNECT_FAILED", "No hay backend configurado (PUBLIC_API_URL).");
   let res: Response;
   try {
+    // apiFetch already renews an expired session once.
     res = await apiFetch("/realtime/session", { method: "POST", body: JSON.stringify(body) }, 10_000);
-    if (res.status === 401) res = await apiFetch("/realtime/session", { method: "POST", body: JSON.stringify(body) }, 10_000);
   } catch {
     throw new ApiError(0, "ENGINE_CONNECT_FAILED", "No se pudo contactar la API para pedir la credencial de voz.");
   }
