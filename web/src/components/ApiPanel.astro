@@ -110,7 +110,7 @@
 
   .tool-catalog summary {
     cursor: pointer;
-    font-weight: 650;
+    font-weight: var(--w-semibold);
   }
 
   .tool-catalog ul {
@@ -126,7 +126,7 @@
 
   .tool-turns caption {
     text-align: left;
-    font-weight: 650;
+    font-weight: var(--w-semibold);
     padding-bottom: var(--s-1);
   }
 
@@ -151,7 +151,7 @@
     color: var(--primary-ink);
     font-family: var(--font-body);
     font-size: var(--t-xs);
-    font-weight: 700;
+    font-weight: var(--w-bold);
     letter-spacing: 0;
     line-height: 1.5rem;
     text-align: center;
@@ -166,7 +166,7 @@
     width: fit-content;
     color: var(--ink-3);
     font-size: var(--t-xs);
-    font-weight: 600;
+    font-weight: var(--w-semibold);
     cursor: pointer;
   }
 
@@ -197,7 +197,7 @@
   .api-item .head code {
     color: var(--primary-ink);
     font-size: var(--t-sm);
-    font-weight: 700;
+    font-weight: var(--w-bold);
   }
 
   .api-item .args {
@@ -211,13 +211,13 @@
     border-radius: var(--r-md);
     background: var(--code-bg);
     color: var(--code-ink);
-    font-size: 0.75rem;
+    font-size: var(--t-xs);
     line-height: 1.6;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
 
-  .soql .kw { color: var(--code-kw); font-weight: 600; }
+  .soql .kw { color: var(--code-kw); font-weight: var(--w-semibold); }
   .soql .fn { color: var(--code-fn); }
   .soql .str { color: var(--code-str); }
 
@@ -232,7 +232,7 @@
 
   .api-item .meta strong {
     color: var(--ink);
-    font-weight: 700;
+    font-weight: var(--w-bold);
   }
 
   .api-item .fields {
@@ -316,7 +316,7 @@
 
   .api-item .groups .v {
     text-align: right;
-    font-weight: 700;
+    font-weight: var(--w-bold);
   }
 
   .api-item .unit,
@@ -338,7 +338,7 @@
     border-radius: var(--r-pill);
     color: var(--ink-2);
     font-size: var(--t-xs);
-    font-weight: 550;
+    font-weight: var(--w-semibold);
   }
 
   .api-item .err {
@@ -353,12 +353,12 @@
 
   .api-item .requery.ok {
     color: var(--primary-ink);
-    font-weight: 650;
+    font-weight: var(--w-semibold);
   }
 
   .api-item .requery.bad {
     color: var(--danger);
-    font-weight: 650;
+    font-weight: var(--w-semibold);
   }
 
   .api-item .requery-btn {
@@ -381,7 +381,7 @@
     gap: var(--s-2);
     color: var(--accent-ink);
     font-size: var(--t-xs);
-    font-weight: 650;
+    font-weight: var(--w-semibold);
   }
 
   .api-item.invalidated > :not(.void) {

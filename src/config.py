@@ -86,6 +86,18 @@ class Settings(BaseSettings):
     gemini_live_model: str = "gemini-3.8-live"
     gemini_live_voice: str = "Kore"
     realtime_credential_ttl_s: int = 600
+    # Context refresh (docs/08 section 7.1): after this many turns the browser renews the engine
+    # session between turns, seeded with the neutral envelope (text only), so the audio context of
+    # a long conversation does not keep growing. 0 turns it off.
+    voice_refresh_turns: int = 6
+    # Same, when the provider reports more context tokens than this (Gemini usageMetadata,
+    # OpenAI response.usage). 0 turns it off.
+    voice_refresh_tokens: int = 20000
+    # Gemini server-side safety net: sliding-window compression with explicit thresholds
+    # (provider default: 80 % of the 128k window). Above the client refresh on purpose: it only
+    # acts if a session grows past the refresh (it drops the oldest turns). 0 = provider default.
+    gemini_compression_trigger_tokens: int = 32000
+    gemini_compression_target_tokens: int = 16000
 
     # -- Cloned voice (D-20). Optional: without the key /health only offers
     # the engine voice and /speech/session answers 503 SYNTH_UNAVAILABLE.

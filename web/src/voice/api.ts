@@ -172,6 +172,11 @@ export interface RealtimeSessionGrant {
     voice_mode?: string;
     /** Who cuts the agent when the user talks over it: the provider ("server") or the browser ("client"). */
     interruption?: string;
+    /**
+     * Context refresh (docs/08 §7.1): renew the session between turns after this many turns or
+     * when the provider reports more context tokens than this. 0 turns a trigger off.
+     */
+    refresh?: { turns?: number; tokens?: number };
   };
   instructions_version?: string;
 }

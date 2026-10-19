@@ -5,6 +5,31 @@ Este proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+### Changed — Pulido visual para la presentación (rama `feat/presentacion`, 2026-10-18)
+- Tipografía unificada: Bricolage Grotesque para títulos y cifras, Instrument Sans para el resto,
+  JetBrains Mono solo para código; escala responsiva de 7 tamaños (mínimo 13 px) y 3 pesos.
+- Sistema único de botones (`--btn-*`: altura 44/52 px, píldora, misma animación de hover/pulsado) y
+  sombras en tres niveles; control segmentado para el selector de personaje y las pestañas de `/admin`.
+- «Detener» con relleno pálido y aro del tema (ya no un bloque casi negro junto al lila); «Usar mi voz»
+  con icono de onda e interruptor, para no parecer un segundo micrófono; tooltips en todos los botones de
+  icono; header y `/admin` legibles a 360 px; icono en cada tarjeta del recorrido de ayuda.
+- 69 pares de contraste medidos en los tres temas: todos AA. No se añadieron labels visibles a los
+  iconos ni se simplificaron controles (fase de adultos mayores, por indicación del asesor).
+
+### Fixed — Voz en conversaciones largas y «Silenciar» (2026-10-18)
+- **Renovación de contexto** (`realtime-base.ts`): cada `VOICE_REFRESH_TURNS` (6) turnos o al pasar de
+  `VOICE_REFRESH_TOKENS` (20.000) tokens, solo entre turnos, con sobre de contexto, resumen de los turnos
+  antiguos y la voz fijada explícitamente; compresión de Gemini 32k → 16k
+  (`GEMINI_COMPRESSION_TRIGGER_TOKENS`/`_TARGET_TOKENS`). Prompt `reto01-ips-v10` con bloque «VOZ».
+  Probado con Gemini real: dos renovaciones de 0,7 s en 13 preguntas y el agente conserva las cifras.
+- **«Silenciar»** corta el resto del turno en ambos motores (antes solo lo que sonaba): 46 ms hasta
+  «Te escucho» con Gemini real.
+
+### Added — Paquete de presentación (`docs/presentacion/`)
+- Feedback recibido, proyecto completo, cómo se hizo cada cosa, glosario, investigación de costos y
+  estado del arte (58 fuentes), guion de 20 + 10 minutos, 53 preguntas probables, plan de estudio y
+  pendientes.
+
 ### Fixed — Validación previa a publicar (2026-10-17)
 - **Sesión vencida:** el front renueva el token y repite la llamada una vez (antes llegaba al agente como
   «la fuente no respondió»).

@@ -4,9 +4,49 @@
  * card that explains it. Mounted once in Base.astro; opened on the first visit
  * and from the help button in the top bar (`[data-help-tour]`).
  * Behaviour lives in src/scripts/help-tour.ts.
+ *
+ * Every card wears an icon of what it points at. The icons are rendered here
+ * once, as <template id="tour-icon-<name>">, and help-tour.ts clones the one
+ * named by the step (`icon` in STEPS) into the card's badge.
  */
 import ArrowLeft from "@lucide/astro/icons/arrow-left";
 import ArrowRight from "@lucide/astro/icons/arrow-right";
+import Bot from "@lucide/astro/icons/bot";
+import ChartColumn from "@lucide/astro/icons/chart-column";
+import Gamepad2 from "@lucide/astro/icons/gamepad-2";
+import HeartPulse from "@lucide/astro/icons/heart-pulse";
+import Keyboard from "@lucide/astro/icons/keyboard";
+import LayoutDashboard from "@lucide/astro/icons/layout-dashboard";
+import LifeBuoy from "@lucide/astro/icons/life-buoy";
+import Lightbulb from "@lucide/astro/icons/lightbulb";
+import MessagesSquare from "@lucide/astro/icons/messages-square";
+import Mic from "@lucide/astro/icons/mic";
+import ScrollText from "@lucide/astro/icons/scroll-text";
+import Shapes from "@lucide/astro/icons/shapes";
+import SlidersHorizontal from "@lucide/astro/icons/sliders-horizontal";
+import Timer from "@lucide/astro/icons/timer";
+import VolumeX from "@lucide/astro/icons/volume-x";
+import Wrench from "@lucide/astro/icons/wrench";
+
+/** Keep the names in sync with `TourIcon` in src/scripts/help-tour.ts. */
+const icons = {
+  bot: Bot,
+  "chart-column": ChartColumn,
+  "gamepad-2": Gamepad2,
+  "heart-pulse": HeartPulse,
+  keyboard: Keyboard,
+  "layout-dashboard": LayoutDashboard,
+  "life-buoy": LifeBuoy,
+  lightbulb: Lightbulb,
+  "messages-square": MessagesSquare,
+  mic: Mic,
+  "scroll-text": ScrollText,
+  shapes: Shapes,
+  "sliders-horizontal": SlidersHorizontal,
+  timer: Timer,
+  "volume-x": VolumeX,
+  wrench: Wrench,
+};
 ---
 
 <div id="help-tour" class="tour" hidden>
@@ -26,22 +66,32 @@ import ArrowRight from "@lucide/astro/icons/arrow-right";
     <div class="tour-top">
       <p class="tour-count" id="help-tour-count" data-testid="tour-count" aria-live="polite"></p>
       <div class="tour-dots" id="help-tour-dots" aria-hidden="true"></div>
-      <button type="button" class="tour-skip" data-tour-skip data-testid="tour-skip">Saltar</button>
+      <button type="button" class="btn btn-ghost tour-skip" data-tour-skip data-testid="tour-skip" title="Saltar el recorrido (Esc)">Saltar</button>
     </div>
     <div class="tour-body">
-      <h2 id="help-tour-title" data-testid="tour-title"></h2>
-      <p id="help-tour-text"></p>
+      <span class="tour-icon" id="help-tour-icon" data-testid="tour-icon" aria-hidden="true"></span>
+      <div class="tour-words">
+        <h2 id="help-tour-title" data-testid="tour-title"></h2>
+        <p id="help-tour-text"></p>
+      </div>
     </div>
     <div class="tour-actions">
-      <button type="button" class="btn" data-tour-prev data-testid="tour-prev">
+      <button type="button" class="btn" data-tour-prev data-testid="tour-prev" title="Paso anterior (←)">
         <ArrowLeft aria-hidden="true" /> Atrás
       </button>
-      <button type="button" class="btn btn-cta tour-next" data-tour-next data-testid="tour-next">
+      <button type="button" class="btn btn-cta tour-next" data-tour-next data-testid="tour-next" title="Paso siguiente (→)">
         <span data-tour-next-label>Siguiente</span>
         <ArrowRight aria-hidden="true" />
       </button>
     </div>
   </div>
+  {
+    Object.entries(icons).map(([name, Icon]) => (
+      <template id={`tour-icon-${name}`}>
+        <Icon aria-hidden="true" />
+      </template>
+    ))
+  }
 </div>
 
 <script>
@@ -154,7 +204,7 @@ import ArrowRight from "@lucide/astro/icons/arrow-right";
     background: var(--accent-soft);
     color: var(--accent-ink);
     font-size: var(--t-xs);
-    font-weight: 700;
+    font-weight: var(--w-bold);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
@@ -180,27 +230,43 @@ import ArrowRight from "@lucide/astro/icons/arrow-right";
     background: var(--rose-500);
   }
 
+  /* A ghost button (global .btn-ghost), tucked into the corner. */
   .tour-skip {
-    min-width: var(--tap);
-    min-height: var(--tap);
     margin: calc(var(--s-2) * -1) calc(var(--s-2) * -1) calc(var(--s-2) * -1) 0;
     padding: 0 var(--s-3);
-    border: 0;
-    border-radius: var(--r-pill);
-    background: none;
-    color: var(--ink-2);
-    font-size: var(--t-sm);
-    font-weight: 600;
   }
 
-  .tour-skip:hover {
-    background: var(--subtle-2);
-    color: var(--ink);
-  }
-
+  /* The step's icon in a soft tile of the theme, beside the title and text. */
   .tour-body {
     display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: var(--s-3);
+  }
+
+  .tour-words {
+    display: grid;
     gap: var(--s-1);
+  }
+
+  .tour-icon {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: var(--r-md);
+    background: var(--primary-soft);
+    color: var(--primary);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 18%, transparent);
+  }
+
+  .tour-icon:empty {
+    display: none;
+  }
+
+  .tour-icon :global(svg) {
+    width: 1.5rem;
+    height: 1.5rem;
   }
 
   /* The new text settles while the cut-out is still arriving, not before. */
@@ -218,7 +284,8 @@ import ArrowRight from "@lucide/astro/icons/arrow-right";
   .tour-body h2 {
     font-family: var(--font-display);
     font-size: var(--t-md);
-    font-weight: 700;
+    font-weight: var(--w-bold);
+    line-height: var(--lh-tight);
     letter-spacing: -0.015em;
     color: var(--primary-ink);
   }
@@ -226,7 +293,7 @@ import ArrowRight from "@lucide/astro/icons/arrow-right";
   .tour-body p {
     color: var(--ink-2);
     font-size: var(--t-sm);
-    line-height: 1.45;
+    line-height: var(--lh-body);
   }
 
   .tour-actions {

@@ -22,9 +22,30 @@ const PAD = 6;
 const GAP = 14;
 const MARGIN = 12;
 
+/** Icons rendered as <template id="tour-icon-<name>"> in HelpTour.astro. */
+type TourIcon =
+  | "bot"
+  | "chart-column"
+  | "gamepad-2"
+  | "heart-pulse"
+  | "keyboard"
+  | "layout-dashboard"
+  | "life-buoy"
+  | "lightbulb"
+  | "messages-square"
+  | "mic"
+  | "scroll-text"
+  | "shapes"
+  | "sliders-horizontal"
+  | "timer"
+  | "volume-x"
+  | "wrench";
+
 interface Step {
   /** Candidate anchors, in order of preference; the first visible one wins. */
   anchors: string[];
+  /** Shown in the card beside the title, so each step is recognised at a glance. */
+  icon: TourIcon;
   title: string;
   text: string;
   /** Only shown when this holds at the moment the tour opens (e.g. the control exists but is hidden). */
@@ -44,21 +65,25 @@ const STEPS: Record<string, Step[]> = {
   "/": [
     {
       anchors: [".hero .btn-talk", 'a[href^="/consola?iniciar"]'],
+      icon: "mic",
       title: "Habla con el agente",
       text: "Pulsa «Hablar ahora» y pregunta con tu voz. Te llevamos directo a la conversación.",
     },
     {
       anchors: [".figures", ".source"],
+      icon: "chart-column",
       title: "La fuente en cifras",
       text: "Estas cifras salen del registro REPS de MinSalud: cuántas IPS, sedes y camas hay.",
     },
     {
       anchors: [".questions", ".ask"],
+      icon: "lightbulb",
       title: "Preguntas sugeridas",
       text: "¿No sabes por dónde empezar? Elige una y el agente la responde por ti.",
     },
     {
       anchors: ['nav a[href="/admin"]'],
+      icon: "layout-dashboard",
       title: "Panel de administrador",
       text: "Entra aquí para ver por dentro cómo trabaja el agente: qué consultó, qué emoción percibió, la transcripción completa y cómo se recuperó de cada fallo.",
     },
@@ -66,11 +91,13 @@ const STEPS: Record<string, Step[]> = {
   "/consola": [
     {
       anchors: ["#avatar-stage", "#stage"],
+      icon: "bot",
       title: "El escenario",
       text: "Aquí vive el agente. Verás si está escuchando, consultando la fuente o hablando.",
     },
     {
       anchors: [".stage-mode", tid("avatar-mode-3d")],
+      icon: "shapes",
       title: "Slime, avatar 3D u orbe",
       text: "Elige cómo quieres verlo: el slime, el avatar 3D animado o solo el orbe, que es el más liviano. Pulsa «Slime» para escoger entre el rosado y el gato. Los colores de la página cambian con el personaje; con el orbe se quedan los que haya.",
     },
@@ -82,31 +109,37 @@ const STEPS: Record<string, Step[]> = {
         const play = q(tid("play-button"));
         return play !== null && isVisible(play);
       },
+      icon: "gamepad-2",
       title: "Jugar con el slime",
       text: "Pulsa el control de juego y el slime ocupa toda la pantalla. Inclina el celular para que ruede y choque con los bordes, o arrástralo con el dedo. Puedes seguir hablando con él; para volver, pulsa «Salir del juego».",
     },
     {
       anchors: [tid("mic-button"), tid("mic-button-composer")],
+      icon: "mic",
       title: "Micrófono",
       text: "Pulsa para hablar y vuelve a pulsar para detener. Al detener no se borra nada: si vuelves a pulsar, sigues donde ibas.",
     },
     {
       anchors: [tid("mute-button"), tid("mute-button-stage")],
+      icon: "volume-x",
       title: "Silenciar",
       text: "Corta la voz del agente al instante. También funciona con la tecla Esc.",
     },
     {
       anchors: [tid("chat")],
+      icon: "messages-square",
       title: "La conversación",
       text: "Todo queda escrito aquí. Cada respuesta con datos trae su cita de fuente y la fecha de corte.",
     },
     {
       anchors: ["#ask-form", tid("ask-input")],
+      icon: "keyboard",
       title: "Escribe tu pregunta",
       text: "¿Prefieres no hablar? Escribe aquí y envía con Enter.",
     },
     {
       anchors: ['nav a[href="/admin"]'],
+      icon: "layout-dashboard",
       title: "Panel de administrador",
       text: "Entra aquí para ver por dentro cómo trabaja el agente: qué consultó, qué emoción percibió, la transcripción completa y cómo se recuperó de cada fallo.",
     },
@@ -114,31 +147,37 @@ const STEPS: Record<string, Step[]> = {
   "/admin": [
     {
       anchors: ["#controls", tid("engine-select")],
+      icon: "sliders-horizontal",
       title: "Agente",
       text: "Cambia el motor y la voz, y activa o apaga el análisis de voz. También puedes corregir, repetir o reiniciar.",
     },
     {
       anchors: [tid("affect-panel")],
+      icon: "heart-pulse",
       title: "Emociones en vivo",
       text: "Muestra el tono que se percibe en la voz y el estilo con el que responde el agente.",
     },
     {
       anchors: [tid("transcript")],
+      icon: "scroll-text",
       title: "Transcripción",
       text: "El registro completo de lo que dijeron la persona y el agente, turno por turno.",
     },
     {
       anchors: [tid("api-panel")],
+      icon: "wrench",
       title: "Herramientas que usó",
       text: "Cada consulta que el agente hace a datos.gov.co: qué buscó, todo lo que devolvió la fuente y cuánto tardó.",
     },
     {
       anchors: [tid("recovery-panel")],
+      icon: "life-buoy",
       title: "Recuperación ante fallos",
       text: "Cada tropiezo (una interrupción, una corrección, la fuente caída) y lo que hizo el agente para seguir.",
     },
     {
       anchors: [tid("latency-panel")],
+      icon: "timer",
       title: "Tiempos de respuesta",
       text: "Cuánto tarda cada etapa de la respuesta, para detectar demoras de un vistazo.",
     },
@@ -430,6 +469,9 @@ function show(index: number, dir: 1 | -1, instant = false): void {
   const body = q(".tour-body");
   const total = session.steps.length;
   if (title) title.textContent = step.title;
+  const badge = q("#help-tour-icon");
+  const art = document.getElementById(`tour-icon-${step.icon}`);
+  if (badge) badge.replaceChildren(art instanceof HTMLTemplateElement ? art.content.cloneNode(true) : "");
   if (text) text.textContent = step.text;
   if (count) count.textContent = `${i + 1} de ${total}`;
   if (prev) prev.disabled = i === 0;

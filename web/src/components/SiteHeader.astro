@@ -32,9 +32,9 @@ const nav = [
         </a>
       ))
     }
-    <button type="button" class="help" data-help-tour data-testid="help-button" aria-haspopup="dialog" title="Ver el recorrido guiado de esta página">
+    <button type="button" class="help" data-help-tour data-testid="help-button" aria-haspopup="dialog" title="¿Cómo funciona? Recorrido guiado de esta página">
       <CircleHelp aria-hidden="true" />
-      <span>¿Cómo funciona?</span>
+      <span class="help-label">¿Cómo funciona?</span>
     </button>
   </nav>
 </header>
@@ -87,7 +87,7 @@ const nav = [
   .names strong {
     font-family: var(--font-display);
     font-size: var(--t-md);
-    font-weight: 700;
+    font-weight: var(--w-bold);
     letter-spacing: -0.015em;
     white-space: nowrap;
   }
@@ -96,7 +96,7 @@ const nav = [
     overflow: hidden;
     color: var(--ink-3);
     font-size: var(--t-xs);
-    font-weight: 550;
+    font-weight: var(--w-regular);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -115,17 +115,20 @@ const nav = [
     border-radius: var(--r-pill);
     color: var(--ink-2);
     font-size: var(--t-sm);
-    font-weight: 600;
+    font-weight: var(--w-semibold);
     text-decoration: none;
     white-space: nowrap;
-    transition:
-      background-color 0.15s,
-      color 0.15s;
+    transition: var(--btn-motion);
   }
 
+  /* The two destinations are ghost buttons: tone on hover, no lift, press down. */
   nav a:hover {
     background: var(--subtle-2);
     color: var(--ink);
+  }
+
+  nav a:active {
+    transform: var(--btn-press);
   }
 
   /* «¿Cómo funciona?» is an action, not a destination: a quiet text button set
@@ -147,14 +150,10 @@ const nav = [
     background: var(--primary-soft);
     color: var(--primary-ink);
     font-size: var(--t-sm);
-    font-weight: 650;
+    font-weight: var(--w-semibold);
     white-space: nowrap;
-    box-shadow: 0 1px 2px color-mix(in oklab, var(--primary) 12%, transparent);
-    transition:
-      background-color 0.2s,
-      border-color 0.2s,
-      box-shadow 0.2s,
-      color 0.2s;
+    box-shadow: var(--shadow-xs);
+    transition: var(--btn-motion);
   }
 
   .help::before {
@@ -171,7 +170,13 @@ const nav = [
     border-color: color-mix(in oklab, var(--primary) 45%, var(--primary-soft));
     background: color-mix(in oklab, var(--primary) 10%, var(--primary-soft));
     color: var(--primary-ink);
-    box-shadow: 0 2px 6px color-mix(in oklab, var(--primary) 18%, transparent);
+    box-shadow: var(--shadow-xs-hover);
+    transform: var(--btn-lift);
+  }
+
+  .help:active {
+    box-shadow: none;
+    transform: var(--btn-press);
   }
 
   .help :global(svg) {
@@ -191,9 +196,15 @@ const nav = [
     }
   }
 
+  /* Icon only: the label stays as the accessible name (visually hidden). */
   @media (max-width: 640px) {
-    .help span {
-      display: none;
+    .help-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
     }
 
     .help {
@@ -206,14 +217,39 @@ const nav = [
   @media (max-width: 460px) {
     .site-header {
       gap: var(--s-2);
+      padding-inline: var(--s-3);
     }
 
     .names {
       display: none;
     }
 
+    nav {
+      gap: 0;
+    }
+
     nav a {
       padding: 0 var(--s-3);
+    }
+
+    .help {
+      margin-left: var(--s-1);
+    }
+
+    .help::before {
+      display: none;
+    }
+  }
+
+  /* 360 px phones: the two links still fit next to the brand and the help. */
+  @media (max-width: 380px) {
+    nav a {
+      padding: 0 0.6rem;
+    }
+
+    .mark {
+      width: 2rem;
+      height: 2rem;
     }
   }
 </style>

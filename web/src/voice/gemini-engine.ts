@@ -36,6 +36,12 @@ const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const NOTE = "[NOTA DEL SISTEMA, no la respondas ni la menciones]";
 /** Ends the server turn from the client. Verified: the model stays silent and listens to the voice that follows. */
 const CUT_NOTE = `${NOTE} La persona te interrumpió. No digas nada ahora: escucha lo que dice a continuación y responde solo a eso.`;
+/**
+ * «Silenciar»: verified 2026-10-18 that with CUT_NOTE the model may answer the note by repeating
+ * what it was saying (dropped, never heard, but the server stays busy until it "finishes"). The
+ * mute asks explicitly for silence and no repetition.
+ */
+const MUTE_NOTE = `${NOTE} La persona pidió silencio. Quédese callado: no responda a esta nota, no repita ni continúe lo que estaba diciendo; espere su próxima pregunta.`;
 /** Wait for late transcription fragments before closing a user utterance. */
 const FINALIZE_MS = 300;
 /** Local voice detector: consecutive voiced 20 ms frames that open a possible interruption. */
@@ -260,7 +266,8 @@ export class GeminiLiveEngine extends RealtimeEngineBase {
     if (!this.serverDeaf || this.cutSent || !this.transportReady) return;
     this.cutSent = true;
     this.mark("client_cut");
-    this.send({ clientContent: { turns: [{ role: "user", parts: [{ text: CUT_NOTE }] }], turnComplete: true } });
+    const note = this.turnMuted ? MUTE_NOTE : CUT_NOTE;
+    this.send({ clientContent: { turns: [{ role: "user", parts: [{ text: note }] }], turnComplete: true } });
     this.muteNoteReply = true;
     this.mutedOutput = false;
     clearTimeout(this.muteTimer);
@@ -309,6 +316,11 @@ export class GeminiLiveEngine extends RealtimeEngineBase {
   /** Without provider barge-in the server hears nothing while it prepares or speaks an answer. */
   private get serverDeaf(): boolean {
     return this.clientBarge && (this.serverTurnOpen || this.serverBusy);
+  }
+
+  /** A context refresh waits while the server turn is open or a local voice is being weighed (docs/08 §7.1). */
+  protected override providerBusy(): boolean {
+    return this.serverDeaf || this.localKey !== null || this.adopting || this.muteNoteReply || this.dropping;
   }
 
   /** While the server is deaf, voice must pass the 1-second rule before it cuts the answer. */
@@ -403,6 +415,12 @@ export class GeminiLiveEngine extends RealtimeEngineBase {
   private onMessage(data: unknown): void {
     const msg = parseFrame(data);
     if (!msg) return;
+
+    // Context size of the session so far: drives the token threshold of the refresh.
+    if (msg.usageMetadata) {
+      const usage = obj(msg.usageMetadata);
+      this.contextUsage(Number(usage.promptTokenCount ?? usage.totalTokenCount ?? 0));
+    }
 
     if (msg.voiceActivity) {
       const activity = obj(msg.voiceActivity);

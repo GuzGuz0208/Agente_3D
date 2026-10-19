@@ -34,7 +34,10 @@ class GeminiLiveSession:
                  silence_duration_ms: int | None = None, prefix_padding_ms: int | None = None,
                  start_sensitivity: str | None = "START_SENSITIVITY_LOW",
                  activity_handling: str | None = "NO_INTERRUPTION",
+                 compression_trigger_tokens: int = 32000, compression_target_tokens: int = 16000,
                  transport: httpx.AsyncBaseTransport | None = None) -> None:
+        self._trigger_tokens = compression_trigger_tokens
+        self._target_tokens = compression_target_tokens
         self._start_sensitivity = start_sensitivity
         self._activity_handling = activity_handling
         self.model = model
@@ -48,6 +51,19 @@ class GeminiLiveSession:
     @property
     def configured(self) -> bool:
         return bool(self._key)
+
+    def _compression(self) -> dict[str, object]:
+        """Sliding window with explicit thresholds (docs/08 section 7.1).
+
+        Provider default: trigger at 80 % of the context window (128k for native audio),
+        target = trigger / 2. The system instructions always stay; the oldest turns go.
+        """
+        if self._trigger_tokens <= 0:
+            return {"slidingWindow": {}}
+        window: dict[str, object] = {}
+        if 0 < self._target_tokens < self._trigger_tokens:
+            window["targetTokens"] = self._target_tokens
+        return {"triggerTokens": self._trigger_tokens, "slidingWindow": window}
 
     async def create(self, req: RealtimeSessionRequest, setup: EngineSetup) -> RealtimeSession:
         if not self._key:
@@ -67,7 +83,7 @@ class GeminiLiveSession:
                 "tools": [{"functionDeclarations": [{"name": t.name, "description": t.description,
                                                      "parameters": t.parameters} for t in setup.tools]}],
                 "inputAudioTranscription": {}, "outputAudioTranscription": {},
-                "sessionResumption": {}, "contextWindowCompression": {"slidingWindow": {}},
+                "sessionResumption": {}, "contextWindowCompression": self._compression(),
             },
         }
         realtime_input: dict[str, object] = {}

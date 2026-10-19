@@ -140,6 +140,8 @@ const deps: EngineDeps = {
   getBrief: async () => (await fetchBrief()).brief,
   // The microphone opens only after «Usar mi voz» (R-26).
   micAllowed: () => store.getState().voiceAnalysis,
+  // A context refresh (docs/08 §7.1) seeds the new session with the same envelope as an engine switch.
+  envelope: () => buildEnvelope(),
   runTool(call: ToolCallPayload, ctx: ToolContext): Promise<EvidenceEnvelope> {
     // Idempotency: same tool_call_id + state_version reuses the result (docs/08 §5.5).
     const key = `${call.tool_call_id}:${ctx.state_version}`;
@@ -381,22 +383,54 @@ function buildEnvelope(): ContextEnvelope {
       };
     });
   const lastPatch = [...s.tools].reverse().find((t) => t.status === "ok" && t.evidence_ref);
+  // Older turns, compact: a context refresh must not forget the first figures (verified 2026-10-18:
+  // after two refreshes the agent no longer knew the first figure it gave).
+  const summary = olderTurnsSummary(s.utterances.filter((u) => u.final && u.kind !== "ack"), 8);
   const filters = (lastPatch?.evidence_ref ? s.evidence[lastPatch.evidence_ref]?.evidence.filters : undefined) ?? {};
   return {
     instructions_version: "reto01-ips-v1",
     state: {
       conversation_id: s.conversation_id ?? "",
       state_version: s.state_version,
-      confirmed_filters: filters,
-      selected_site_keys: [],
+      // The canonical filters the backend confirmed; the last result's filters when there are none yet.
+      confirmed_filters: Object.keys(confirmedFilters).length > 0 ? confirmedFilters : filters,
+      selected_site_keys: selectedSiteKeys,
       pending_candidates: [],
       tone_preference: s.style.source === "preference" && s.style.style === "directo" ? "concise" : "neutral",
     },
-    summary: "",
+    summary,
     recent_turns: recent,
     tool_results: results,
     allowed_tools: ALLOWED_TOOLS,
   };
+}
+
+const SUMMARY_MAX = 1600;
+
+/**
+ * Compact text of the turns that no longer fit in `recent_turns` (docs/10 §3 `summary`):
+ * «P: question → R: answer», what was heard only. The oldest pairs are kept first, because
+ * the recent ones travel in full; it is capped so the seed stays small.
+ */
+export function olderTurnsSummary(
+  finals: { role: string; text: string; kind?: string; delivered_text?: string; correction?: { text: string } }[],
+  keepRecent: number,
+): string {
+  const older = finals.slice(0, Math.max(0, finals.length - keepRecent));
+  const clip = (t: string, n: number): string => (t.length > n ? `${t.slice(0, n - 1)}…` : t);
+  const parts: string[] = [];
+  for (const u of older) {
+    if (u.kind === "brief") continue; // the greeting: its figures come from the live brief again
+    const text = (u.correction?.text ?? u.delivered_text ?? u.text).replace(/\s+/g, " ").trim();
+    if (!text) continue;
+    parts.push(u.role === "user" ? `P: ${clip(text, 90)}` : `R: ${clip(text, 150)}`);
+  }
+  let out = "";
+  for (const p of parts) {
+    if (out.length + p.length + 3 > SUMMARY_MAX) break;
+    out += (out ? " | " : "") + p;
+  }
+  return out ? `Turnos anteriores (lo que se dijo): ${out}` : "";
 }
 
 /**

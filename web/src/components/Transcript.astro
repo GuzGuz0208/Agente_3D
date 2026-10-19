@@ -43,7 +43,7 @@
       key: u.id,
       cls: `t-row role-${u.role}${u.final ? "" : " partial"}`,
       testid: `transcript-row-${u.role}`,
-      html: `<time class="mono">${clock(u.t_start)}</time><span class="role">${ROLE[u.role]}</span><p>${text(u)}${tags.map((t) => ` <span class="tag tag-quiet">${t}</span>`).join("")}</p>`,
+      html: `<time class="num">${clock(u.t_start)}</time><span class="role">${ROLE[u.role]}</span><p>${text(u)}${tags.map((t) => ` <span class="tag tag-quiet">${t}</span>`).join("")}</p>`,
     };
   }
 
@@ -51,7 +51,7 @@
     return {
       key: `n-${n.id}`,
       cls: `t-row role-system${n.kind === "error" ? " is-error" : ""}`,
-      html: `<time class="mono">${clock(n.t)}</time><span class="role">${n.kind === "error" ? "Error" : "Sistema"}</span><p>${esc(n.text)}</p>`,
+      html: `<time class="num">${clock(n.t)}</time><span class="role">${n.kind === "error" ? "Error" : "Sistema"}</span><p>${esc(n.text)}</p>`,
     };
   }
 
@@ -110,7 +110,7 @@
   }
 
   .t-row .role {
-    font-weight: 700;
+    font-weight: var(--w-bold);
   }
 
   .t-row.role-agent .role { color: var(--primary); }
@@ -139,7 +139,7 @@
   }
 
   .t-row .fixed {
-    font-weight: 650;
+    font-weight: var(--w-semibold);
   }
 
   @container board-card (max-width: 30rem) {

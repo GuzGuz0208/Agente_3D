@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from api.app_voice import create_app
 from api.voice_container import VoiceContainer
 from models.analysis import AffectEstimate, AnalysisResult, StyleDecision
+from models.voice import RealtimeSessionRequest
 from services.ips.brief import BriefService
 from services.ips.lexicon import Lexicon
 from services.ips.tools import IpsToolService
@@ -132,6 +133,16 @@ def test_cloned_voice_is_effective_only_with_openai(client):
     assert {t.name for t in setup.tools} == {"search_ips", "get_ips_details", "aggregate_ips", "compare_ips",
                                              "correct_context", "verify_registration", "area_profile",
                                              "compare_areas", "dataset_info"}
+
+
+async def test_grant_carries_the_context_refresh_thresholds():
+    """docs/08 section 7.1: the browser learns N turns / token threshold from the credential."""
+    engines = {"gemini": FakeRealtimeSession("gemini", supports_text_only=False)}
+    svc = RealtimeService(engines, None, instructions="x", instructions_version="v", speech_configured=False,
+                          refresh_turns=6, refresh_tokens=20000)
+    grant = await svc.create(RealtimeSessionRequest(engine="gemini", conversation_id="c", voice="Kore"))
+    assert grant.config["refresh"] == {"turns": 6, "tokens": 20000}
+    assert engines["gemini"].setups[-1].voice == "Kore"  # a renewal's pinned voice reaches the adapter
 
 
 def test_style_and_seed_reach_the_instructions(client):

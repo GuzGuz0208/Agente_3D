@@ -189,6 +189,7 @@ La cancelación cuenta como medida de latencia (parada p95 ≤ 200 ms) pero un b
 |---|---|
 | WebSocket cerrado o error de red | Renovar el mismo motor (credencial nueva), intento 1 |
 | `goAway` de Gemini o caducidad de credencial | Renovación **proactiva entre turnos**, nunca a mitad de una respuesta |
+| Cada N turnos o más de T tokens de contexto | **Renovación de contexto** silenciosa entre turnos (§7.1) |
 | 429 o cuota al conectar | Cambiar al otro motor |
 | Sin primer audio 6 s después del fin de la voz | Tratar como fallo del motor |
 | Dos intentos fallidos | Modo texto con mensaje claro y *Repetir* |
@@ -196,10 +197,62 @@ La cancelación cuenta como medida de latencia (parada p95 ≤ 200 ms) pero un b
 
 Límite: **≤ 2 intentos de motor por turno** (R-25). El HUD indica «sesión renovada» o «motor
 cambiado a X». Al reconectar se *siembra* el motor nuevo con el **sobre de contexto neutral**
-([10](10-modelos-afecto-y-recuperacion.md) §3): estado confirmado, últimos 4 turnos completados (texto escuchado) y hasta 5
-resultados de herramienta compactos con su evidencia. **No** se copian IDs de sesión del
+([10](10-modelos-afecto-y-recuperacion.md) §3): estado confirmado, últimas 8 intervenciones (texto escuchado), un
+`summary` compacto de las anteriores y hasta 5 resultados de herramienta compactos con su evidencia. **No** se copian IDs de sesión del
 proveedor, razonamiento oculto ni mensajes de herramienta incompatibles. No se reproduce
 audio ya dicho ni se vuelve a ejecutar una herramienta (ver idempotencia).
+
+### 7.1 Renovación de contexto (estabilidad de la voz)
+
+**Problema (feedback del 17-10-2026):** en conversaciones medianamente largas el agente «cambia de
+voz o de entonación agresivamente». Causa probable: los modelos nativos de audio acumulan en su
+contexto todo el audio de la sesión (Gemini ≈ 25 tokens por segundo de audio según
+[buenas prácticas de Live API](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/live-api/best-practices);
+OpenAI 10 tokens/s de entrada y 20 tokens/s de salida,
+[costos de Realtime](https://developers.openai.com/api/docs/guides/realtime-costs)), y cada respuesta
+se condiciona en su propia voz anterior. Ninguno de los dos proveedores documenta la deriva como
+fallo conocido; Google sí advierte que, sin fijar idioma y voz, «Gemini might alter the
+conversation language depending on the provided context». Sin compresión, Gemini cierra la sesión
+de solo audio a los 15 min y la conexión dura ≈ 10 min con `goAway`
+([sesiones](https://ai.google.dev/gemini-api/docs/live-session)); por omisión la compresión
+(`slidingWindow`) solo se dispara al 80 % de 128k tokens ([API](https://ai.google.dev/api/live)), es
+decir, nunca en una demo. OpenAI corta la sesión a los 60 min, fija la voz tras el primer audio y
+trunca los mensajes más antiguos al llegar a 28.672 tokens, sin resumir
+([conversaciones](https://developers.openai.com/api/docs/guides/realtime-conversations),
+[notas de Realtime](https://developers.openai.com/blog/realtime-api)).
+
+**Qué se hace** (en el navegador, `realtime-base.ts`; motor-neutral):
+
+| Control | Valor | Dónde |
+|---|---|---|
+| Renovar cada N turnos | `VOICE_REFRESH_TURNS`, por omisión **6** (`0` apaga) | backend → `config.refresh.turns` de la credencial |
+| Renovar al superar T tokens de contexto | `VOICE_REFRESH_TOKENS`, por omisión **20 000** | `config.refresh.tokens`; Gemini `usageMetadata.promptTokenCount`, OpenAI `response.usage.input_tokens` |
+| Compresión en el servidor de Gemini (red de seguridad) | `triggerTokens` **32 000**, `slidingWindow.targetTokens` **16 000** | `GEMINI_COMPRESSION_TRIGGER_TOKENS` / `…_TARGET_TOKENS`; conserva siempre las instrucciones de sistema |
+| Voz explícita en cada sesión | la de la primera credencial (`config.voice`) se pide como `voice` en cada renovación | Gemini `prebuiltVoiceConfig.voiceName`, OpenAI `audio.output.voice` |
+| Idioma y entrega fijados | prompt `reto01-ips-v10` (sección VOZ: español de Colombia «inequívocamente», misma voz, ritmo y entonación serena) y nota del sobre («Sigue igual que hasta ahora…») | Gemini nativo **no** acepta `languageCode` ([guía](https://ai.google.dev/gemini-api/docs/live-guide)): el idioma va en las instrucciones |
+
+- **Solo entre turnos:** nada sonando ni en cola, sin herramienta en curso, sin voz local en los
+  últimos 700 ms, sin regla de 1 s pendiente y, en Gemini, con su turno cerrado. Si algo lo impide,
+  se vuelve a mirar cada 700 ms.
+- **Silenciosa:** no muestra «Un momento» (estado `renewing`); el estado sigue en «Te escucho».
+  Una pregunta escrita durante la renovación se muestra al instante y se envía al abrir la sesión
+  nueva; la voz captada mientras tanto se guarda (≤ 5 s) y se reenvía si hubo voz; una corrección
+  de cifras pendiente sale después. El panel de recuperación anota «Sesión renovada con el mismo
+  motor (contexto renovado tras 6 turnos para mantener la voz estable)».
+- **Siembra:** el mismo sobre neutral que la conmutación (`buildEnvelope` del controlador): filtros
+  canónicos confirmados, últimas 8 intervenciones escuchadas, `summary` con las anteriores
+  («P: … | R: …», ≤ 1 600 caracteres) y 5 resultados compactos. Sin saludo, sin herramientas, sin
+  audio repetido. Un `goAway` también renueva así (silencioso).
+- **Medido con Gemini real** (2026-10-18, Edge sin interfaz, 13 preguntas escritas + Silenciar):
+  dos renovaciones (tras los turnos 6 y 12) de 0,7 s cada una (socket cerrado → abierto), sin
+  estado «Un momento»; el contexto volvió de ≈ 6 100 a ≈ 4 000 tokens (≈ 3 300 son instrucciones y
+  herramientas). Tras la 1.ª el agente repitió 837 IPS y 125 públicas de Antioquia; tras la 2.ª, ya
+  con `summary`, dijo bien la primera cifra (837). Sin `summary` (1.ª corrida) la había olvidado.
+  Mediana de F0 del audio por sesión 190–220 Hz (indicativo, no prueba de ausencia de deriva).
+  Visto una vez: un acuse en inglés («Let me check that information for you.») tras una
+  renovación; por eso la regla 9 del prompt pide el acuse en español.
+- **Sin verificar:** conversación por voz larga (más tokens por turno; el umbral de tokens debería
+  dispararse antes), OpenAI real y la percepción de la deriva por personas.
 
 ## 8. Transcripción
 
@@ -224,6 +277,17 @@ definición **no cambia**: primer audio audible relevante. El HUD añade la voz 
 ## 10. Interfaz y controles
 
 Estados: `idle`, `connecting`, `listening`, `thinking`, `speaking`, `renewing`, `error`.
+**Silenciar** (y Esc): corta al instante la voz del agente (vacía el reproductor, descarta la
+generación; OpenAI `response.cancel` + `truncate`, Gemini fin de turno con una nota que pide
+silencio) y **no dice nada más en ese turno**: ni la respuesta que seguiría a una herramienta en
+curso ni una corrección de cifras; la siguiente pregunta se responde normal. El estado
+`speaking` dura desde el primer audio hasta el fin del habla, aunque el reproductor se quede un
+instante sin audio, así que el botón está habilitado mientras el agente suena. Medido con Gemini
+(2026-10-18): estado a «Te escucho» en 46 ms, 38 ms de audio tras el clic, ninguna fuente nueva;
+el agente sonó con el botón deshabilitado 373 ms en 127 s de audio (arranques de cada frase,
+resolución del reloj del reproductor, 25 ms). Con la nota de interrupción común el modelo
+respondía a la nota repitiendo lo que decía (508 tokens, servidor ocupado 14 s, no se oía); con la
+nota de silencio: 45 tokens y 2 s.
 Controles: **Iniciar/Detener**, **Corregir lo que dije**, **Más directo**, **Repetir**,
 **Reiniciar** (borra estado y transcripción), selector de **motor**, selector de **voz** («voz del
 motor» / «voz clonada», §15.6; solo si `GET /health` anuncia `cloned`), interruptor de **análisis

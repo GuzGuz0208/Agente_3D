@@ -131,8 +131,11 @@
   /* Call to action («Hablar», «Siguiente»): a piece of the avatar. Here a rose
      slightly lighter than the slime's body, lit from above, with wine ink: the
      warmest thing on a pale page. Ink stays ≥ 4.5:1 over every stop (rest
-     5.2:1, hover 6.5:1, pressed 4.6:1). «Detener» keeps the same pill in a
-     dark tone with white ink: told apart by value and icon. */
+     5.2:1, hover 6.5:1, pressed 4.6:1).
+     «Detener» is the same pill turned tonal: a pale tint of the theme's stop
+     hue, a 2px rim in its deep tone and dark ink, no glow. It is told apart
+     from «Hablar» by value (pale vs lit), by the rim and by the square icon,
+     and never drops a near-black slab next to the avatar's pastel. */
   --cta: color-mix(in srgb, var(--p-500) 65%, var(--p-400));
   --cta-hover: var(--p-400);
   --cta-press: var(--p-500);
@@ -140,8 +143,9 @@
   --cta-shine: linear-gradient(180deg, color-mix(in srgb, var(--white) 26%, transparent), transparent 62%);
   --cta-rim: color-mix(in srgb, var(--p-800) 30%, transparent);
   --cta-glow: color-mix(in srgb, var(--p-600) 55%, transparent);
-  --cta-stop: var(--primary-ink);
-  --cta-stop-hover: var(--p-950);
+  --stop-bg: var(--p-100);
+  --stop-ink: var(--p-900);
+  --stop-rim: var(--p-700);
 
   /* Charts: the agent's measures in the primary, the person's / tools in the accent */
   --chart: var(--p-500);
@@ -174,18 +178,41 @@
   --state-ink: var(--p-800);
   --state-soft: var(--p-75);
 
-  /* Type */
+  /* ── Type ─────────────────────────────────────────────────────────────────
+     Two families with one job each, never mixed inside a block of text:
+       --font-display  Bricolage Grotesque: headings (h1–h3), the brand name,
+                       chat greeting and large figures. Never below --t-md.
+       --font-body     Instrument Sans: everything else (body, buttons,
+                       labels, notes, tables, numbers in text).
+       --font-mono     only for real code: SoQL, tool and model identifiers.
+     Scale (≈ 1.2 ratio), fluid between a 360 px phone and a 1280 px desktop:
+       --t-xs    13 px            notes, captions, tags, timestamps (the floor)
+       --t-sm    14 → 15 px       secondary text, buttons, labels, tables
+       --t-base  16 px            body, chat bubbles, inputs
+       --t-md    17 → 18 px       card titles, the mood sentence, tour titles
+       --t-lg    20 → 24 px       section titles, chat greeting, big stats
+       --t-xl    26 → 36 px       page titles (Administrador)
+       --t-2xl   36 → 72 px       the cover headline only
+     Weights: 400 text, 600 labels/buttons/emphasis, 700 headings and figures. */
   --font-display: "Bricolage Grotesque Variable", "Segoe UI", system-ui, sans-serif;
   --font-body: "Instrument Sans Variable", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", Consolas, monospace;
 
-  --t-xs: 0.75rem;
-  --t-sm: 0.875rem;
+  --t-xs: 0.8125rem;
+  --t-sm: clamp(0.875rem, 0.85rem + 0.1vw, 0.9375rem);
   --t-base: 1rem;
-  --t-md: 1.125rem;
-  --t-lg: 1.5rem;
-  --t-xl: clamp(1.75rem, 1.3rem + 1.6vw, 2.4rem);
+  --t-md: clamp(1.0625rem, 1.02rem + 0.18vw, 1.125rem);
+  --t-lg: clamp(1.25rem, 1.12rem + 0.55vw, 1.5rem);
+  --t-xl: clamp(1.625rem, 1.3rem + 1.4vw, 2.25rem);
   --t-2xl: clamp(2.25rem, 1.1rem + 5vw, 4.5rem);
+
+  --w-regular: 400;
+  --w-semibold: 600;
+  --w-bold: 700;
+
+  --lh-tight: 1.15; /* headings */
+  --lh-snug: 1.35; /* labels, notes, short UI text */
+  --lh-body: 1.5; /* running text */
 
   /* Space and shape */
   --s-1: 0.25rem;
@@ -203,10 +230,38 @@
   --r-lg: 22px;
   --r-pill: 999px;
 
+  /* ── Elevation: three levels, one rule each ──────────────────────────────
+       --shadow-xs     controls in the page flow (secondary buttons, chips,
+                       question tiles): a hairline lift, no blur halo.
+       --shadow-card   panels and cards that sit on the page (chat, stage,
+                       board cards, the mood pill).
+       --shadow-float  anything that floats over other content (stage tools,
+                       badges, popovers, the tour card, sticky tabs).
+     Items nested inside a card (legend rows, records) take a border, never a
+     shadow. Ghost buttons and links take none. The call to action keeps its
+     own lit glow (--cta-glow), the only coloured shadow. */
+  --shadow-xs: 0 1px 2px color-mix(in srgb, var(--n-900) 10%, transparent);
+  --shadow-xs-hover: 0 1px 2px color-mix(in srgb, var(--n-900) 10%, transparent),
+    0 6px 14px -8px color-mix(in srgb, var(--n-900) 30%, transparent);
   --shadow-card: 0 1px 2px color-mix(in srgb, var(--n-900) 5%, transparent),
     0 14px 32px -16px color-mix(in srgb, var(--n-900) 18%, transparent);
   --shadow-float: 0 2px 6px color-mix(in srgb, var(--n-900) 10%, transparent),
     0 10px 24px -10px color-mix(in srgb, var(--n-900) 24%, transparent);
+
+  /* ── Buttons: two heights, one radius, one motion ─────────────────────── */
+  --btn-h: var(--tap); /* 44 px: every button, chip and segmented option */
+  --btn-h-lg: 3.25rem; /* 52 px: the voice controls and the composer */
+  --btn-r: var(--r-pill);
+  --btn-pad: var(--s-4);
+  --btn-motion:
+    background-color 0.18s var(--ease),
+    border-color 0.18s var(--ease),
+    color 0.18s var(--ease),
+    box-shadow 0.18s var(--ease),
+    opacity 0.18s var(--ease),
+    transform 0.18s var(--ease);
+  --btn-lift: translateY(-1px); /* hover on raised buttons */
+  --btn-press: translateY(1px); /* active on every button */
 
   --ease: cubic-bezier(0.22, 0.8, 0.26, 1);
   /* Sine ease-in-out: starts and lands softly, never overshoots. For things that
@@ -255,6 +310,10 @@
   --cta-press: #887cae;
   --cta-rim: color-mix(in srgb, var(--p-800) 32%, transparent);
   --cta-glow: color-mix(in srgb, var(--p-700) 50%, transparent);
+  /* «Detener»: the cat's own pale lavender, the deep stripe as the rim and the
+     eyes as ink. Not the pink of the ears: that is the person's side, worn by
+     «Usar mi voz» right next to it. */
+  --stop-rim: var(--p-800);
   --stage-floor: color-mix(in srgb, var(--p-700) 20%, transparent);
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%234e4860' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
@@ -264,8 +323,8 @@
    grey of the jacket, warmed a little so the page reads as paper, not steel.
    Accent: cocoa from the hair over the peach of the skin, for a warm, human
    person's side. The call to action is the jacket's charcoal with white ink
-   (the highest-contrast pill in any theme); «Detener» turns it crimson, the
-   one place where a strong red fills a button, because it means «stop». */
+   (the highest-contrast pill in any theme); «Detener» turns to a pale crimson
+   with a crimson rim: the cords' colour, because it means «stop». */
 :root[data-theme="humano"] {
   --p-950: #380a15;
   --p-900: #5a1224;
@@ -311,8 +370,6 @@
   --cta-shine: linear-gradient(180deg, color-mix(in srgb, var(--white) 14%, transparent), transparent 62%);
   --cta-rim: color-mix(in srgb, var(--n-950) 55%, transparent);
   --cta-glow: color-mix(in srgb, var(--n-900) 45%, transparent);
-  --cta-stop: var(--p-800);
-  --cta-stop-hover: var(--p-900);
 
   --stage-top: var(--n-50);
   --stage-bottom: var(--a-100);

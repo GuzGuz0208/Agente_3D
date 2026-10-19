@@ -83,7 +83,9 @@ def build_container(s: Settings) -> VoiceContainer:
                                               silence_duration_ms=s.realtime_silence_duration_ms,
                                               prefix_padding_ms=s.realtime_prefix_padding_ms,
                                               start_sensitivity=s.gemini_start_sensitivity or None,
-                                              activity_handling=s.gemini_activity_handling or None)
+                                              activity_handling=s.gemini_activity_handling or None,
+                                              compression_trigger_tokens=s.gemini_compression_trigger_tokens,
+                                              compression_target_tokens=s.gemini_compression_target_tokens)
     speech = CartesiaSpeechSession(api_key=s.cartesia_api_key, voice_id=s.cartesia_voice_id,
                                    model=s.cartesia_model, version=s.cartesia_version,
                                    voice_label=s.cartesia_voice_label, ttl_s=s.speech_token_ttl_s)
@@ -105,7 +107,8 @@ def build_container(s: Settings) -> VoiceContainer:
         brief=BriefService(dataset, source_url=source_url, cutoff_raw=lexicon.cutoff_raw),
         realtime=RealtimeService(engines, speech, instructions=instructions, instructions_version=version,
                                  speech_configured=speech.configured, default_voice_mode=s.voice_default_mode,
-                                 default_engine=s.voice_default_engine),
+                                 default_engine=s.voice_default_engine,
+                                 refresh_turns=s.voice_refresh_turns, refresh_tokens=s.voice_refresh_tokens),
         analyst=analyst,
         feedback=LogFeedback(),
         dataset=dataset,

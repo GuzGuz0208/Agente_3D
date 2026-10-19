@@ -37,6 +37,12 @@ export interface EngineDeps {
   now(): number;
   /** False until the person pressed «Usar mi voz» (R-26): the microphone stays closed. Absent means allowed. */
   micAllowed?: () => boolean;
+  /**
+   * The controller's neutral context envelope (docs/10 §3: confirmed filters, heard turns,
+   * compact results). A session renewal seeds the new session with it; absent, the engine
+   * uses what it kept itself.
+   */
+  envelope?: () => ContextEnvelope;
 }
 
 export interface FakeEngineOptions {

@@ -35,13 +35,13 @@ import { NO_READING_COPY } from "../scripts/mood-indicator";
       <button type="button" class="btn" data-mood-dismiss data-testid="mood-dismiss" hidden>
         <Undo2 aria-hidden="true" /> No es así
       </button>
-      <button type="button" class="btn mood-quiet" data-mood-hide data-testid="mood-hide">
+      <button type="button" class="btn btn-ghost mood-quiet" data-mood-hide data-testid="mood-hide">
         <EyeOff aria-hidden="true" /> Ocultar el ánimo
       </button>
     </div>
   </div>
 
-  <button type="button" class="mood-show" data-mood-show data-testid="mood-show">
+  <button type="button" class="btn btn-ghost mood-show" data-mood-show data-testid="mood-show">
     <Eye aria-hidden="true" /> Mostrar el ánimo
   </button>
 </section>
@@ -106,18 +106,16 @@ import { NO_READING_COPY } from "../scripts/mood-indicator";
     line-height: 1.3;
   }
 
+  /* A sentence, not a heading: body family, one step up in size and weight. */
   .mood-headline {
-    font-family: var(--font-display);
     font-size: var(--t-md);
-    font-weight: 650;
-    letter-spacing: -0.01em;
+    font-weight: var(--w-semibold);
     color: var(--ink);
   }
 
   .mood[data-status="none"] .mood-headline,
   .mood[data-status="dismissed"] .mood-headline {
     color: var(--ink-2);
-    font-weight: 600;
   }
 
   .mood-hint {
@@ -137,17 +135,19 @@ import { NO_READING_COPY } from "../scripts/mood-indicator";
     background: transparent;
     color: var(--ink-2);
     font-size: var(--t-sm);
-    font-weight: 650;
+    font-weight: var(--w-semibold);
     white-space: nowrap;
-    transition:
-      background-color 0.15s,
-      border-color 0.15s;
+    transition: var(--btn-motion);
   }
 
+  /* A ghost button, like every tertiary action. */
   .mood-toggle:hover {
     background: var(--subtle-2);
-    border-color: var(--border-strong);
     color: var(--ink);
+  }
+
+  .mood-toggle:active {
+    transform: var(--btn-press);
   }
 
   .mood-toggle[aria-expanded="true"] {
@@ -196,7 +196,7 @@ import { NO_READING_COPY } from "../scripts/mood-indicator";
   .mood-why :global(.mood-why-hint) {
     display: none;
     color: var(--ink);
-    font-weight: 600;
+    font-weight: var(--w-semibold);
   }
 
   .mood-why :global(strong) {
@@ -234,35 +234,18 @@ import { NO_READING_COPY } from "../scripts/mood-indicator";
     gap: var(--s-2);
   }
 
-  .mood-actions .btn {
-    font-size: var(--t-base);
-  }
 
-  .mood-quiet {
-    border-color: transparent;
-    background: transparent;
-    color: var(--ink-2);
-  }
 
   /* ── Hidden by the person ──────────────────────────────────────────────── */
 
+  /* A ghost button (global .btn-ghost) with a dashed outline: something put away. */
   .mood-show {
     display: none;
-    align-items: center;
-    gap: var(--s-2);
-    min-height: var(--tap);
-    padding: 0 var(--s-4);
     border: 1px dashed var(--border-strong);
-    border-radius: var(--r-pill);
-    background: transparent;
-    color: var(--ink-2);
-    font-size: var(--t-sm);
-    font-weight: 600;
   }
 
-  .mood-show:hover {
-    background: var(--subtle-2);
-    color: var(--ink);
+  .mood .mood-show:hover:not(:disabled) {
+    border-color: var(--border-strong);
   }
 
   .mood[data-hidden="true"] .mood-bar,

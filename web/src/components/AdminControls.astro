@@ -154,7 +154,7 @@ import { ENGINES } from "../voice/engine-factory";
   .fix label {
     color: var(--ink-2);
     font-size: var(--t-sm);
-    font-weight: 600;
+    font-weight: var(--w-semibold);
   }
 
   .setting {
@@ -174,7 +174,7 @@ import { ENGINES } from "../voice/engine-factory";
     padding: 0;
     border: 0;
     background: none;
-    font-weight: 650;
+    font-weight: var(--w-semibold);
     text-align: left;
   }
 
@@ -229,7 +229,6 @@ import { ENGINES } from "../voice/engine-factory";
 
   .actions .btn {
     justify-content: flex-start;
-    border-radius: var(--r-md);
   }
 
   .fix {
@@ -247,6 +246,11 @@ import { ENGINES } from "../voice/engine-factory";
     border: 1px solid var(--border-field);
     border-radius: var(--r-md);
     background: var(--card);
+    transition: border-color 0.18s var(--ease);
+  }
+
+  .fix input:hover {
+    border-color: var(--border-hover);
   }
 
   .fix-row {
@@ -256,7 +260,7 @@ import { ENGINES } from "../voice/engine-factory";
   }
 
   .fix-row .btn {
-    min-height: var(--tap);
+    min-height: var(--btn-h);
     font-size: var(--t-sm);
   }
 </style>

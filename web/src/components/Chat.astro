@@ -7,7 +7,12 @@
  *
  * The composer sits at the bottom edge. On phones and upright tablets it also
  * holds the talk button, so the microphone is always under the thumb.
+ *
+ * «Usar mi voz» is a setting, not a second microphone: it allows the tone of
+ * the voice to be analysed. It wears a waveform icon and a small switch (off)
+ * so it never reads as the talk button, which is the only microphone icon.
  */
+import AudioWaveform from "@lucide/astro/icons/audio-waveform";
 import Mic from "@lucide/astro/icons/mic";
 import Send from "@lucide/astro/icons/send";
 import Square from "@lucide/astro/icons/square";
@@ -24,7 +29,7 @@ const questions = brief.suggested_questions.slice(0, 4);
         {
           questions.map((q) => (
             <li>
-              <button type="button" data-q={q}>{q}</button>
+              <button type="button" class="btn chip" data-q={q}>{q}</button>
             </li>
           ))
         }
@@ -35,15 +40,15 @@ const questions = brief.suggested_questions.slice(0, 4);
 
   <div class="consent" id="voice-consent" data-testid="voice-consent" data-on="false">
     <p class="consent-off">
-      <button type="button" class="consent-btn" id="btn-consent" data-testid="consent-button">
-        <Mic aria-hidden="true" /> Usar mi voz
+      <button type="button" class="consent-btn" id="btn-consent" data-testid="consent-button" aria-describedby="consent-why" title="Usar mi voz: analizar el tono, sin guardar audio">
+        <AudioWaveform aria-hidden="true" /> Usar mi voz <span class="consent-knob" aria-hidden="true"></span>
       </button>
-      <span>Permite el micrófono y el análisis de voz: solo para ajustar el tono, sin guardar audio.</span>
+      <span id="consent-why">Permite el micrófono y el análisis de voz: solo para ajustar el tono, sin guardar audio.</span>
     </p>
     <p class="consent-on">
-      <span class="dot" aria-hidden="true"></span>
+      <span class="consent-on-mark" aria-hidden="true"><AudioWaveform /></span>
       <span data-testid="voice-active">Análisis de voz activo</span>
-      <button type="button" class="consent-off-btn" id="btn-consent-off" data-testid="consent-withdraw">Dejar de usar mi voz</button>
+      <button type="button" class="btn btn-ghost consent-off-btn" id="btn-consent-off" data-testid="consent-withdraw">Dejar de usar mi voz</button>
     </p>
     <p class="ai-badge" data-testid="ai-badge">Asistente de IA: puede equivocarse; las cifras salen de datos.gov.co.</p>
   </div>
@@ -55,7 +60,7 @@ const questions = brief.suggested_questions.slice(0, 4);
     </button>
     <label class="sr-only" for="ask-input">Escribe tu pregunta</label>
     <input id="ask-input" data-testid="ask-input" type="text" autocomplete="off" enterkeyhint="send" placeholder="Escribe tu pregunta" />
-    <button class="send" type="submit" data-testid="send-button" aria-label="Enviar" title="Enviar"><Send aria-hidden="true" /></button>
+    <button class="btn btn-primary btn-icon btn-lg send" type="submit" data-testid="send-button" aria-label="Enviar" title="Enviar"><Send aria-hidden="true" /></button>
   </form>
 </section>
 
@@ -102,7 +107,7 @@ const questions = brief.suggested_questions.slice(0, 4);
       key: `n-${n.id}`,
       cls: "msg system",
       testid: "chat-error",
-      html: `<p>${icon("triangle-alert")}<span>${esc(n.text)}</span>${n.retry ? '<button type="button" class="retry-btn" data-retry data-testid="retry-button">Reintentar</button>' : ""}</p>`,
+      html: `<p>${icon("triangle-alert")}<span>${esc(n.text)}</span>${n.retry ? '<button type="button" class="retry-btn" data-retry data-testid="retry-button" title="Reintentar">Reintentar</button>' : ""}</p>`,
     };
   }
 
@@ -227,8 +232,8 @@ const questions = brief.suggested_questions.slice(0, 4);
   .chat-empty .lead {
     font-family: var(--font-display);
     font-size: var(--t-lg);
-    font-weight: 650;
-    line-height: 1.15;
+    font-weight: var(--w-bold);
+    line-height: var(--lh-tight);
     letter-spacing: -0.015em;
     text-wrap: balance;
   }
@@ -240,24 +245,12 @@ const questions = brief.suggested_questions.slice(0, 4);
     gap: var(--s-2);
   }
 
-  .chips button {
-    min-height: var(--tap);
-    padding: 0.4rem var(--s-4);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--r-pill);
-    background: var(--card);
+  /* Suggested questions: secondary buttons (global .btn) whose text may wrap. */
+  .chips .chip {
+    padding-block: 0.4rem;
     color: var(--primary-ink);
-    font-size: var(--t-sm);
-    font-weight: 600;
-    line-height: 1.25;
-    transition:
-      background-color 0.15s,
-      border-color 0.15s;
-  }
-
-  .chips button:hover {
-    background: var(--accent-soft);
-    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    white-space: normal;
+    text-align: center;
   }
 
   /* ── Messages ──────────────────────────────────────────────────────────── */
@@ -338,7 +331,7 @@ const questions = brief.suggested_questions.slice(0, 4);
   }
 
   .bubble .fixed {
-    font-weight: 650;
+    font-weight: var(--w-semibold);
   }
 
   .msg-note {
@@ -391,8 +384,8 @@ const questions = brief.suggested_questions.slice(0, 4);
     background: var(--danger-soft);
     color: var(--danger);
     font-size: var(--t-sm);
-    font-weight: 600;
-    line-height: 1.4;
+    font-weight: var(--w-semibold);
+    line-height: var(--lh-snug);
   }
 
   .msg.system svg {
@@ -415,8 +408,8 @@ const questions = brief.suggested_questions.slice(0, 4);
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: var(--s-2);
-    line-height: 1.35;
+    gap: var(--s-1) var(--s-2);
+    line-height: var(--lh-snug);
   }
 
   .consent[data-on="true"] .consent-off,
@@ -424,43 +417,74 @@ const questions = brief.suggested_questions.slice(0, 4);
     display: none;
   }
 
-  .consent-btn,
-  .consent-off-btn {
+  /* «Usar mi voz»: a setting chip with a small switch, in the person's soft
+     accent. Same height, radius, shadow and motion as the secondary button. */
+  .consent-btn {
     display: inline-flex;
     align-items: center;
-    gap: 0.35em;
-    min-height: 2.25rem;
-    padding: 0.25rem var(--s-3);
-    /* The person's side, quietly: a soft accent tint with a hairline in the
-       same hue and dark accent ink, never a saturated outline. */
+    gap: var(--s-2);
+    min-height: var(--btn-h);
+    padding: 0 var(--s-2) 0 var(--s-3);
     border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
-    border-radius: var(--r-pill);
+    border-radius: var(--btn-r);
     background: var(--accent-soft);
+    box-shadow: var(--shadow-xs);
     color: var(--accent-ink);
     font-size: var(--t-sm);
-    font-weight: 650;
-    transition:
-      background-color 0.15s,
-      border-color 0.15s;
+    font-weight: var(--w-semibold);
+    white-space: nowrap;
+    transition: var(--btn-motion);
   }
 
   .consent-btn:hover {
     border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent-soft) 70%, var(--card));
+    box-shadow: var(--shadow-xs-hover);
+    transform: var(--btn-lift);
+  }
+
+  .consent-btn:active {
+    box-shadow: none;
+    transform: var(--btn-press);
+  }
+
+  /* The switch, off: an outlined track with the knob on the left. */
+  .consent-knob {
+    position: relative;
+    flex: none;
+    width: 2.1rem;
+    height: 1.25rem;
+    margin-left: var(--s-1);
+    border: 2px solid var(--accent);
+    border-radius: var(--r-pill);
+    background: var(--card);
+  }
+
+  .consent-knob::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: calc(1.25rem - 8px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: var(--accent);
+    transition: transform 0.18s var(--ease);
+  }
+
+  .consent-btn:hover .consent-knob::after {
+    transform: translateX(3px);
+  }
+
+  .consent-on-mark {
+    display: grid;
+    place-items: center;
+    color: var(--accent);
   }
 
   .consent-off-btn {
-    border-color: var(--border-strong);
-    background: transparent;
-    color: var(--ink-2);
-    font-weight: 600;
-  }
-
-  .consent .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--accent);
+    min-height: 2.25rem;
+    padding-inline: var(--s-3);
+    font-size: var(--t-xs);
   }
 
   .consent .ai-badge {
@@ -469,12 +493,18 @@ const questions = brief.suggested_questions.slice(0, 4);
 
   .retry-btn {
     margin-left: auto;
-    padding: 0.15rem var(--s-3);
+    min-height: 2.25rem;
+    padding: 0 var(--s-3);
     border: 1px solid currentColor;
-    border-radius: var(--r-pill);
+    border-radius: var(--btn-r);
     background: transparent;
     color: inherit;
-    font-weight: 650;
+    font-weight: var(--w-semibold);
+    transition: var(--btn-motion);
+  }
+
+  .retry-btn:hover {
+    background: var(--card);
   }
 
   .bubble mark.unverified {
@@ -496,11 +526,19 @@ const questions = brief.suggested_questions.slice(0, 4);
   .composer input {
     flex: 1;
     min-width: 0;
-    min-height: 3rem;
+    min-height: var(--btn-h-lg);
     padding: 0 var(--s-4);
     border: 1px solid var(--border-field);
     border-radius: var(--r-pill);
     background: var(--subtle);
+  }
+
+  .composer input {
+    transition: border-color 0.18s var(--ease), background-color 0.18s var(--ease);
+  }
+
+  .composer input:hover {
+    border-color: var(--border-hover);
   }
 
   .composer input:focus {
@@ -512,74 +550,74 @@ const questions = brief.suggested_questions.slice(0, 4);
     opacity: 1;
   }
 
-  .composer .mic,
+  /* «Enviar» is a global .btn-primary .btn-icon .btn-lg; only its icon size is set here. */
   .composer .send {
+    font-size: 1.15rem;
+  }
+
+  /* Talk button: the same call to action as «Hablar» under the avatar
+     (global .btn-talk), as a 52 px circle, with the same tonal «Detener».
+     Hidden on wide screens, where the same control sits under the avatar. */
+  .composer .mic {
     display: grid;
     place-items: center;
     flex: none;
+    width: var(--btn-h-lg);
+    height: var(--btn-h-lg);
     border: 0;
     border-radius: 50%;
-    color: var(--on-dark);
-    transition:
-      background-color 0.15s,
-      transform 0.15s var(--ease);
-  }
-
-  .composer .mic:active,
-  .composer .send:active {
-    transform: scale(0.94);
-  }
-
-  .composer .send {
-    width: 3rem;
-    height: 3rem;
-    background: var(--primary);
-    font-size: 1.1rem;
-  }
-
-  .composer .send:hover {
-    background: var(--primary-ink);
-  }
-
-  /* Talk button: the largest target on a phone. Hidden on wide screens, where
-     the same control sits under the avatar. */
-  .composer .mic {
-    width: 3.5rem;
-    height: 3.5rem;
-    /* Same call to action as «Hablar» under the avatar (global .btn-talk). */
     background-color: var(--cta);
     background-image: var(--cta-shine);
     color: var(--cta-ink);
     box-shadow:
       inset 0 -2px 0 var(--cta-rim),
-      0 8px 18px -10px var(--cta-glow);
+      0 10px 22px -12px var(--cta-glow);
     font-size: 1.35rem;
+    transition: var(--btn-motion);
   }
 
   /* Hover never overrides the running («Detener») state. */
   .composer .mic:not([data-running="true"]):hover {
     background-color: var(--cta-hover);
+    box-shadow:
+      inset 0 -2px 0 var(--cta-rim),
+      0 14px 26px -12px var(--cta-glow);
+    transform: var(--btn-lift);
   }
 
   .composer .mic:not([data-running="true"]):active {
     background-color: var(--cta-press);
     background-image: none;
     box-shadow: inset 0 2px 4px var(--cta-rim);
+    transform: var(--btn-press);
   }
 
   .composer .mic span {
     display: grid;
   }
 
+  /* «Detener»: the tonal stop pill of the global .btn-talk, as a circle. */
   .composer .mic[data-running="true"] {
-    background-color: var(--cta-stop);
+    background-color: var(--stop-bg);
     background-image: none;
-    color: var(--on-dark);
-    box-shadow: none;
+    color: var(--stop-ink);
+    box-shadow: inset 0 0 0 2px var(--stop-rim);
   }
 
   .composer .mic[data-running="true"]:hover {
-    background-color: var(--cta-stop-hover);
+    box-shadow:
+      inset 0 0 0 3px var(--stop-rim),
+      var(--shadow-xs-hover);
+    transform: var(--btn-lift);
+  }
+
+  .composer .mic[data-running="true"]:active {
+    box-shadow: inset 0 0 0 3px var(--stop-rim);
+    transform: var(--btn-press);
+  }
+
+  .composer .mic[data-running="true"] .when-running svg {
+    fill: currentColor;
   }
 
   .composer .mic[data-running="true"] .when-stopped,

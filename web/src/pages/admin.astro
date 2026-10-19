@@ -5,7 +5,8 @@
  * here after navigating (the client router keeps the modules alive).
  *
  * Wide screens show every section in a grid. Below 900px one section is shown
- * at a time, picked with the segmented control under the title.
+ * at a time, picked with the segmented control under the title (a 3 × 2 grid
+ * of options on phones, so every section is in sight without scrolling).
  */
 import ArrowRight from "@lucide/astro/icons/arrow-right";
 import Base from "../layouts/Base.astro";
@@ -36,10 +37,10 @@ const views = [
         <h1>Administrador</h1>
         <p id="admin-status" role="status">Sin conversación</p>
       </div>
-      <a class="btn" href="/consola">Ir a la conversación <ArrowRight aria-hidden="true" /></a>
+      <a class="btn go" href="/consola" title="Ir a la conversación"><span class="go-label">Ir a la conversación</span> <ArrowRight aria-hidden="true" /></a>
     </header>
 
-    <div class="views" role="group" aria-label="Sección visible">
+    <div class="views segmented" role="group" aria-label="Sección visible">
       {
         views.map((v, i) => (
           <button type="button" data-view-btn={v.id} aria-pressed={i === 0 ? "true" : "false"}>
@@ -129,12 +130,13 @@ const views = [
   }
 
   .board-head h2 {
-    font-size: var(--t-md);
+    font-size: var(--t-lg);
   }
 
   .board-head p {
     color: var(--ink-3);
     font-size: var(--t-sm);
+    line-height: var(--lh-snug);
   }
 
   .board-empty {
@@ -185,48 +187,49 @@ const views = [
   #admin-status {
     color: var(--state-ink);
     font-size: var(--t-sm);
-    font-weight: 600;
+    font-weight: var(--w-semibold);
+    line-height: var(--lh-snug);
     transition: color 0.3s;
   }
 
   /* ── Section picker (small screens only) ───────────────────────────────── */
 
+  /* Options, hover and the pressed one come from the global .segmented control. */
   .views {
     position: sticky;
     top: var(--s-2);
     z-index: 5;
-    display: flex;
-    gap: 2px;
-    padding: 4px;
     overflow-x: auto;
     border: 1px solid var(--border);
-    border-radius: var(--r-pill);
     background: var(--card);
     box-shadow: var(--shadow-float);
     scrollbar-width: none;
-    scroll-snap-type: x proximity;
   }
 
   .views button {
     flex: 1 0 auto;
-    scroll-snap-align: center;
-    min-height: var(--tap);
     padding: 0 var(--s-4);
-    border: 0;
-    border-radius: var(--r-pill);
-    background: transparent;
-    color: var(--ink-2);
-    font-size: var(--t-sm);
-    font-weight: 600;
-    white-space: nowrap;
-    transition:
-      background-color 0.15s,
-      color 0.15s;
   }
 
-  .views button[aria-pressed="true"] {
-    background: var(--primary);
-    color: var(--on-dark);
+  /* Phones: two rows of three, every section visible at once (no hidden scroll). */
+  @media (max-width: 640px) {
+    .views {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      border-radius: var(--r-lg);
+    }
+
+    .views button {
+      min-width: 0;
+      padding: 0 var(--s-1);
+    }
+  }
+
+  /* 360 px phones: «Transcripción» and «Herramientas» keep some air at the note size. */
+  @media (max-width: 400px) {
+    .views button {
+      font-size: var(--t-xs);
+    }
   }
 
   .board {
@@ -254,17 +257,30 @@ const views = [
     }
   }
 
+  /* Phones: «Ir a la conversación» becomes an icon button; the label stays as its name. */
   @media (max-width: 560px) {
-    .admin-top .btn {
+    .admin-top .go {
       flex: none;
+      width: var(--btn-h);
       padding: 0;
-      width: var(--tap);
-      font-size: 0;
       gap: 0;
     }
 
-    .admin-top .btn :global(svg) {
+    .go-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .admin-top .go :global(svg) {
       font-size: 1.1rem;
+    }
+
+    .admin {
+      gap: var(--s-3);
     }
   }
 

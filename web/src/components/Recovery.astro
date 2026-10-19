@@ -73,7 +73,7 @@
         ? items.map((i) => ({
             key: i.key,
             cls: `rec-item is-${i.kind}`,
-            html: `<time class="mono">${i.t ? clock(i.t) : ""}</time><div><p class="what">${esc(i.what)}</p><p class="did">${esc(i.did)}</p></div>`,
+            html: `<time class="num">${i.t ? clock(i.t) : ""}</time><div><p class="what">${esc(i.what)}</p><p class="did">${esc(i.did)}</p></div>`,
           }))
         : [{ key: "empty", cls: "board-empty", html: "Aquí aparece cada tropiezo (una interrupción, una corrección, la fuente caída, un cambio de motor o de voz) y lo que hizo el agente para seguir." }];
       reconcile(list, rows);
@@ -108,7 +108,7 @@
 
   .rec-item .what {
     font-size: var(--t-sm);
-    font-weight: 600;
+    font-weight: var(--w-semibold);
   }
 
   .rec-item .did {

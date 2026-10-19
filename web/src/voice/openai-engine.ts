@@ -153,6 +153,8 @@ export class OpenAIRealtimeEngine extends RealtimeEngineBase {
     if (!responseId || !state || !state.hadCalls || !state.done || state.openCalls > 0) return;
     // A newer user turn gets its own response from the provider's turn detection.
     if (state.turnId !== this.currentTurnId || this.activeResponse !== null) return;
+    // «Silenciar» in this turn: the result stays in the conversation, but no answer is asked for.
+    if (this.turnMuted) return;
     state.hadCalls = false;
     this.send({ type: "response.create" });
   }
@@ -277,6 +279,9 @@ export class OpenAIRealtimeEngine extends RealtimeEngineBase {
         const state = this.responses.get(id);
         if (this.activeResponse === id) this.activeResponse = null;
         if (state) state.done = true;
+        // Input tokens of this response = the whole context so far (drives the refresh threshold).
+        const usage = obj(response.usage);
+        if (typeof usage.input_tokens === "number") this.contextUsage(usage.input_tokens);
         const status = str(response.status);
         const flushTruncate = (): void => {
           if (state?.itemId && state.truncateAt !== null) this.truncate(state.itemId, state.truncateAt);

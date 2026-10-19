@@ -49,3 +49,20 @@ async def test_empty_activity_handling_keeps_the_provider_default():
     ric = captured[0]["bidiGenerateContentSetup"]["realtimeInputConfig"]
     assert "activityHandling" not in ric
     assert grant.config["interruption"] == "server"
+
+
+async def test_context_compression_has_explicit_thresholds():
+    """docs/08 section 7.1: a sliding window with explicit trigger and target (not 80 % of 128k)."""
+    captured: list[dict] = []
+    grant = await _create(_session(captured))
+    setup = captured[0]["bidiGenerateContentSetup"]
+    assert setup["contextWindowCompression"] == {"triggerTokens": 32000, "slidingWindow": {"targetTokens": 16000}}
+    # The voice is stated in every credential, renewals included.
+    assert setup["generationConfig"]["speechConfig"]["voiceConfig"]["prebuiltVoiceConfig"]["voiceName"] == "Kore"
+    assert grant.config["voice"] == "Kore"
+
+
+async def test_context_compression_can_fall_back_to_the_provider_default():
+    captured: list[dict] = []
+    await _create(_session(captured, compression_trigger_tokens=0))
+    assert captured[0]["bidiGenerateContentSetup"]["contextWindowCompression"] == {"slidingWindow": {}}

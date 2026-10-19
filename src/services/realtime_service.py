@@ -64,8 +64,11 @@ def seed_note(seed: ContextEnvelope | None) -> str:
 class RealtimeService:
     def __init__(self, engines: dict[str, RealtimeSessionPort], speech: SpeechSessionPort | None,
                  *, instructions: str, instructions_version: str, speech_configured: bool,
-                 default_voice_mode: str = "cloned", default_engine: str | None = None) -> None:
+                 default_voice_mode: str = "cloned", default_engine: str | None = None,
+                 refresh_turns: int = 0, refresh_tokens: int = 0) -> None:
         self._engines = engines
+        # Context refresh (docs/08 section 7.1): the browser renews the session between turns.
+        self._refresh = {"turns": max(0, refresh_turns), "tokens": max(0, refresh_tokens)}
         self._speech = speech
         self._instructions = instructions
         self._version = instructions_version
@@ -115,6 +118,7 @@ class RealtimeService:
         session = await adapter.create(req, setup)
         session.config["voice_mode"] = setup.voice_mode
         session.config["voice_mode_requested"] = req.voice_mode
+        session.config["refresh"] = dict(self._refresh)
         return session
 
     async def create_speech(self, req: SpeechSessionRequest) -> SpeechSession:

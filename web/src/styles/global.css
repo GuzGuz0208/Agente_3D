@@ -21,7 +21,8 @@ body {
   color: var(--ink);
   font-family: var(--font-body);
   font-size: var(--t-base);
-  line-height: 1.5;
+  font-weight: var(--w-regular);
+  line-height: var(--lh-body);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -47,8 +48,8 @@ h1,
 h2,
 h3 {
   font-family: var(--font-display);
-  font-weight: 650;
-  line-height: 1.1;
+  font-weight: var(--w-bold);
+  line-height: var(--lh-tight);
   letter-spacing: -0.015em;
   text-wrap: balance;
 }
@@ -119,7 +120,7 @@ svg.lucide {
   background: var(--primary-ink);
   color: var(--on-dark);
   border-radius: var(--r-sm);
-  font-weight: 600;
+  font-weight: var(--w-semibold);
 }
 
 .skip:focus {
@@ -142,40 +143,53 @@ svg.lucide {
   box-shadow: var(--shadow-card);
 }
 
-/* ── Buttons ─────────────────────────────────────────────────────────────── */
+/* ── Buttons ─────────────────────────────────────────────────────────────
+   One system for every button on the site. Same height (--btn-h, or
+   --btn-h-lg for the voice controls), same pill radius, same motion
+   (--btn-motion): hover lifts raised buttons a pixel, active presses every
+   button down a pixel, focus is the global ring. Levels:
+     .btn            secondary: white, hairline border, --shadow-xs
+     .btn-primary    filled primary, white ink, --shadow-xs
+     .btn-talk/.btn-cta  call to action: lit avatar colour with its glow
+     .btn-ghost      tertiary: no fill, no border, no shadow
+     .btn-icon       icon only (square: width = height); combine with a level
+     .btn-lg         the 52 px height
+   A button's level never changes on hover: only tone, border and lift. */
 
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--s-2);
-  min-height: var(--tap);
-  padding: 0 var(--s-4);
+  min-height: var(--btn-h);
+  padding: 0 var(--btn-pad);
   border: 1px solid var(--border-strong);
-  border-radius: var(--r-pill);
+  border-radius: var(--btn-r);
   background: var(--card);
+  box-shadow: var(--shadow-xs);
   color: var(--ink);
-  font-weight: 600;
   font-size: var(--t-sm);
+  font-weight: var(--w-semibold);
+  line-height: var(--lh-snug);
   text-decoration: none;
   white-space: nowrap;
-  transition:
-    background-color 0.15s,
-    border-color 0.15s,
-    color 0.15s,
-    transform 0.15s var(--ease);
+  transition: var(--btn-motion);
 }
 
 .btn:hover:not(:disabled) {
   background: var(--subtle-2);
   border-color: var(--border-hover);
+  box-shadow: var(--shadow-xs-hover);
+  transform: var(--btn-lift);
 }
 
 .btn:active:not(:disabled) {
-  transform: scale(0.97);
+  box-shadow: none;
+  transform: var(--btn-press);
 }
 
 .btn:disabled {
+  box-shadow: none;
   opacity: 0.5;
 }
 
@@ -185,43 +199,64 @@ svg.lucide {
   color: var(--accent-ink);
 }
 
+.btn-lg,
 .btn-primary,
 .btn-talk {
-  min-height: 3.25rem;
+  min-height: var(--btn-h-lg);
   padding: 0 var(--s-5);
-  border: 0;
   font-size: var(--t-base);
-  font-weight: 650;
+}
+
+.btn-icon {
+  width: var(--btn-h);
+  padding: 0;
+  flex: none;
+}
+
+.btn-icon.btn-lg {
+  width: var(--btn-h-lg);
 }
 
 .btn-primary {
+  border-color: transparent;
   background: var(--primary);
   color: var(--on-dark);
 }
 
 .btn-primary:hover:not(:disabled) {
+  border-color: transparent;
   background: var(--primary-ink);
 }
 
+.btn-ghost {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-2);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--subtle-2);
+  box-shadow: none;
+  color: var(--ink);
+  transform: none;
+}
+
 /* Call to action: «Hablar» (.btn-talk) and the tour's «Siguiente» (.btn-cta).
-   A piece of the slime: light rose lit from above, wine ink, a soft rose glow.
-   Hover lights it up and lifts it a pixel; pressing sinks it. The fill is a
-   background-color (animatable, and what contrast checks read); the shine on
-   top is a separate image layer. */
+   A piece of the avatar: lit from above, dark ink, a soft glow in its colour.
+   The fill is a background-color (animatable, and what contrast checks read);
+   the shine on top is a separate image layer. */
 .btn-talk,
 .btn-cta {
   border: 0;
   background-color: var(--cta);
   background-image: var(--cta-shine);
   color: var(--cta-ink);
+  font-weight: var(--w-bold);
   box-shadow:
     inset 0 -2px 0 var(--cta-rim),
     0 10px 22px -12px var(--cta-glow);
-  transition:
-    background-color 0.2s,
-    box-shadow 0.2s,
-    color 0.2s,
-    transform 0.2s var(--ease);
 }
 
 /* Hover never overrides the running («Detener») state. */
@@ -233,7 +268,7 @@ svg.lucide {
   box-shadow:
     inset 0 -2px 0 var(--cta-rim),
     0 14px 26px -12px var(--cta-glow);
-  transform: translateY(-1px);
+  transform: var(--btn-lift);
 }
 
 .btn-talk:not([data-running="true"]):active:not(:disabled),
@@ -241,19 +276,76 @@ svg.lucide {
   background-color: var(--cta-press);
   background-image: none;
   box-shadow: inset 0 2px 4px var(--cta-rim);
-  transform: translateY(1px);
+  transform: var(--btn-press);
 }
 
-/* «Detener»: the same pill in dark wine with white ink, no glow. */
+/* «Detener»: the same pill, tonal. Pale stop tint, a 2px rim in its deep tone,
+   dark ink, no glow. Hover keeps the fill (a change of colour under the cursor
+   would read as another action) and only thickens the rim and lifts it. */
 .btn-talk[data-running="true"] {
-  background-color: var(--cta-stop);
+  background-color: var(--stop-bg);
   background-image: none;
-  color: var(--on-dark);
-  box-shadow: none;
+  color: var(--stop-ink);
+  box-shadow: inset 0 0 0 2px var(--stop-rim);
 }
 
 .btn-talk[data-running="true"]:hover:not(:disabled) {
-  background-color: var(--cta-stop-hover);
+  background-color: var(--stop-bg);
+  box-shadow:
+    inset 0 0 0 3px var(--stop-rim),
+    var(--shadow-xs-hover);
+  transform: var(--btn-lift);
+}
+
+.btn-talk[data-running="true"]:active:not(:disabled) {
+  box-shadow: inset 0 0 0 3px var(--stop-rim);
+  transform: var(--btn-press);
+}
+
+/* The square of «Detener» is filled: a stop sign, not an empty box. */
+.btn-talk[data-running="true"] .when-running svg {
+  fill: currentColor;
+}
+
+/* Segmented control (stage modes, admin sections): the pressed option is the
+   primary fill; the others are ghosts with the same hover. */
+.segmented {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--btn-r);
+}
+
+.segmented button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  min-width: var(--btn-h);
+  min-height: var(--btn-h);
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--btn-r);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: var(--t-sm);
+  font-weight: var(--w-semibold);
+  white-space: nowrap;
+  transition: var(--btn-motion);
+}
+
+.segmented button:hover:not([aria-pressed="true"]) {
+  background: var(--subtle-2);
+  color: var(--ink);
+}
+
+.segmented button:active {
+  transform: var(--btn-press);
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--on-dark);
 }
 
 /* ── Tags: told apart by shape as well as tone ───────────────────────────── */
@@ -266,7 +358,7 @@ svg.lucide {
   border: 1px solid transparent;
   border-radius: var(--r-pill);
   font-size: var(--t-xs);
-  font-weight: 650;
+  font-weight: var(--w-semibold);
   line-height: 1.6;
   white-space: nowrap;
   background: var(--subtle-2);
@@ -306,8 +398,9 @@ svg.lucide {
   background: var(--card) var(--chevron) no-repeat right 0.7rem center;
   appearance: none;
   font-size: var(--t-sm);
-  font-weight: 600;
+  font-weight: var(--w-semibold);
   text-overflow: ellipsis;
+  transition: border-color 0.18s var(--ease);
 }
 
 .select:hover {
@@ -389,6 +482,7 @@ html[data-theme-shift]::view-transition-new(root) {
 /* One-line AI notice on the cover and the console. */
 .ai-badge {
   font-size: var(--t-xs);
+  line-height: var(--lh-snug);
   color: var(--ink-3);
 }
 
@@ -425,6 +519,7 @@ body #avatar-stage[data-emotion] {
   /* A stacking context: the pseudo-elements (z-index -1) stay above the stage background. */
   isolation: isolate;
   box-shadow:
+    var(--shadow-card),
     0 0 4px 0 color-mix(in srgb, var(--emotion-glow) 45%, transparent),
     0 0 calc(var(--emotion-reach) * 2.5) 0 color-mix(in srgb, var(--emotion-glow) 22%, transparent);
   /* The first entry repeats AvatarStage.astro's own transition, which this one replaces. */

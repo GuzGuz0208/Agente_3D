@@ -67,15 +67,15 @@ import Orb from "./Orb.astro";
         <Gamepad2 aria-hidden="true" /><span class="tool-label">Jugar</span>
       </button>
       <button type="button" class="tool tool-mute" data-testid="mute-button-stage" data-mute disabled aria-label="Silenciar" title="Silenciar (Esc)"><VolumeX aria-hidden="true" /></button>
-      <button type="button" class="tool tool-subs" id="btn-subtitles" data-testid="subtitles-button" aria-pressed="true" aria-label="Subtítulos" title="Mostrar u ocultar los subtítulos"><Captions aria-hidden="true" /></button>
+      <button type="button" class="tool tool-subs" id="btn-subtitles" data-testid="subtitles-button" aria-pressed="true" aria-label="Subtítulos" title="Subtítulos: mostrar u ocultar"><Captions aria-hidden="true" /></button>
       <button type="button" class="tool" id="btn-fullscreen" aria-label="Pantalla completa" title="Pantalla completa"><Maximize aria-hidden="true" /></button>
       <button type="button" class="tool tool-cam" id="btn-camera" aria-label="Reiniciar cámara" title="Reiniciar cámara"><Rotate3d aria-hidden="true" /></button>
       <button type="button" class="tool tool-cam" id="btn-zoom-in" aria-label="Acercar" title="Acercar"><ZoomIn aria-hidden="true" /></button>
       <button type="button" class="tool tool-cam" id="btn-zoom-out" aria-label="Alejar" title="Alejar"><ZoomOut aria-hidden="true" /></button>
     </div>
 
-    <div class="stage-mode" role="group" aria-label="Qué se muestra">
-      <button type="button" data-avatar-mode="slime" data-testid="avatar-mode-3d" aria-pressed="true" aria-expanded="false" aria-controls="slime-looks" title="Mostrar el slime y elegir cómo se ve">
+    <div class="stage-mode segmented" role="group" aria-label="Qué se muestra">
+      <button type="button" data-avatar-mode="slime" data-testid="avatar-mode-3d" aria-pressed="true" aria-expanded="false" aria-controls="slime-looks" title="Slime: muéstralo y elige cómo se ve">
         <svg class="look-mark look-rosado" viewBox="0 0 32 32" aria-hidden="true">
           <path class="look-body" d="M5 25.5C5 14.5 9.6 7 16 7s11 7.5 11 18.5c0 2-1.4 3-3.6 3H8.6C6.4 28.5 5 27.5 5 25.5Z" />
           <ellipse class="look-eye" cx="12.6" cy="19" rx="1.5" ry="2" /><ellipse class="look-eye" cx="19.4" cy="19" rx="1.5" ry="2" />
@@ -90,14 +90,14 @@ import Orb from "./Orb.astro";
         <ChevronUp class="mode-more" size={16} aria-hidden="true" />
       </button>
       <div class="slime-looks" id="slime-looks" data-testid="slime-looks" role="group" aria-label="Cómo se ve el slime" hidden>
-        <button type="button" data-slime-look="rosado" data-testid="slime-look-rosado" aria-pressed="true">
+        <button type="button" data-slime-look="rosado" data-testid="slime-look-rosado" aria-pressed="true" title="Slime rosado">
           <svg class="look-swatch look-rosado" viewBox="0 0 32 32" aria-hidden="true">
             <path class="look-body" d="M5 25.5C5 14.5 9.6 7 16 7s11 7.5 11 18.5c0 2-1.4 3-3.6 3H8.6C6.4 28.5 5 27.5 5 25.5Z" />
             <ellipse class="look-eye" cx="12.6" cy="19" rx="1.5" ry="2" /><ellipse class="look-eye" cx="19.4" cy="19" rx="1.5" ry="2" />
           </svg>
           <span><span class="sr-only">Slime </span>Rosado</span>
         </button>
-        <button type="button" data-slime-look="gato" data-testid="slime-look-gato" aria-pressed="false">
+        <button type="button" data-slime-look="gato" data-testid="slime-look-gato" aria-pressed="false" title="Slime gato">
           <svg class="look-swatch look-gato" viewBox="0 0 32 32" aria-hidden="true">
             <path class="look-body" d="M5 25.5c0-8 2.1-13.7 5.6-16.5L9.2 4.2c-.2-.9.7-1.5 1.4-.9l4 3.4a12 12 0 0 1 2.8 0l4-3.4c.7-.6 1.6 0 1.4.9L21.4 9C24.9 11.8 27 17.5 27 25.5c0 2-1.4 3-3.6 3H8.6C6.4 28.5 5 27.5 5 25.5Z" />
             <path class="look-ear" d="M10.7 5.6 11.6 9l2-1.3Zm10.6 0L20.4 9l-2-1.3Z" />
@@ -107,10 +107,10 @@ import Orb from "./Orb.astro";
           <span><span class="sr-only">Slime </span>Gato</span>
         </button>
       </div>
-      <button type="button" data-avatar-mode="humano" data-testid="avatar-mode-human" aria-pressed="false" title="Mostrar el avatar 3D animado">
+      <button type="button" data-avatar-mode="humano" data-testid="avatar-mode-human" aria-pressed="false" title="Avatar 3D: el personaje animado">
         <UserRound aria-hidden="true" /> <span>Avatar 3D</span>
       </button>
-      <button type="button" data-avatar-mode="off" data-testid="avatar-mode-orb" aria-pressed="false" title="Mostrar solo el orbe">
+      <button type="button" data-avatar-mode="off" data-testid="avatar-mode-orb" aria-pressed="false" title="Orbe: la vista más liviana">
         <CircleDot aria-hidden="true" /> <span>Orbe</span>
       </button>
     </div>
@@ -132,7 +132,7 @@ import Orb from "./Orb.astro";
     <!-- Play mode only: a short hint once the sensor answers, and the controls that stay on screen. -->
     <p class="play-note" id="play-note" data-testid="play-note" role="status" aria-live="polite"></p>
     <div class="play-bar" role="group" aria-label="Juego">
-      <button type="button" class="btn play-exit" id="btn-play-exit" data-testid="play-exit" aria-keyshortcuts="Escape">
+      <button type="button" class="btn btn-lg play-exit" id="btn-play-exit" title="Salir del juego (Esc)" data-testid="play-exit" aria-keyshortcuts="Escape">
         <X aria-hidden="true" /> Salir del juego
       </button>
       <button class="btn btn-talk" type="button" id="btn-play-talk" data-testid="mic-button-play" data-running="false">
@@ -149,7 +149,7 @@ import Orb from "./Orb.astro";
       <span class="when-running"><Square aria-hidden="true" /> Detener</span>
       <span class="when-waiting"><span class="wait-spin" aria-hidden="true"></span> Conectando…</span>
     </button>
-    <button class="btn" type="button" id="btn-mute" data-testid="mute-button" data-mute disabled aria-keyshortcuts="Escape" title="Silenciar (Esc)">
+    <button class="btn btn-lg" type="button" id="btn-mute" data-testid="mute-button" data-mute disabled aria-keyshortcuts="Escape" title="Silenciar (Esc)">
       <VolumeX aria-hidden="true" /> Silenciar
     </button>
     <p class="status-sub" id="status-sub">Pulsa Hablar o escribe tu pregunta.</p>
@@ -684,6 +684,7 @@ import Orb from "./Orb.astro";
     overflow: hidden;
     border: 1px solid var(--border);
     border-radius: var(--r-lg);
+    box-shadow: var(--shadow-card);
     background:
       radial-gradient(60% 22% at 50% 96%, var(--stage-floor), transparent 70%),
       radial-gradient(90% 70% at 50% 30%, color-mix(in oklab, var(--state-soft) 70%, var(--white)), transparent 75%),
@@ -694,6 +695,7 @@ import Orb from "./Orb.astro";
   #avatar-stage:fullscreen {
     border: 0;
     border-radius: 0;
+    box-shadow: none;
   }
 
   #avatar-canvas {
@@ -778,7 +780,7 @@ import Orb from "./Orb.astro";
     box-shadow: var(--shadow-float);
     color: var(--state-ink);
     font-size: var(--t-sm);
-    font-weight: 650;
+    font-weight: var(--w-semibold);
     backdrop-filter: blur(6px);
   }
 
@@ -813,15 +815,18 @@ import Orb from "./Orb.astro";
     background: var(--glass);
     box-shadow: var(--shadow-float);
     color: var(--ink-2);
-    transition:
-      color 0.15s,
-      opacity 0.15s,
-      transform 0.15s var(--ease);
+    transition: var(--btn-motion);
   }
 
+  /* Same motion as every other button: tone up, one pixel of lift, press down. */
   .tool:hover:not(:disabled) {
-    color: var(--accent-ink);
-    transform: scale(1.06);
+    background: var(--card);
+    color: var(--primary-ink);
+    transform: var(--btn-lift);
+  }
+
+  .tool:active:not(:disabled) {
+    transform: var(--btn-press);
   }
 
   .tool:disabled {
@@ -863,7 +868,7 @@ import Orb from "./Orb.astro";
       clip-path: none;
       color: var(--primary-ink);
       font-size: var(--t-sm);
-      font-weight: 650;
+      font-weight: var(--w-semibold);
     }
   }
 
@@ -886,10 +891,6 @@ import Orb from "./Orb.astro";
     position: absolute;
     left: var(--s-3);
     bottom: var(--s-3);
-    display: flex;
-    gap: 2px;
-    padding: 3px;
-    border-radius: var(--r-pill);
     background: var(--glass);
     box-shadow: var(--shadow-float);
     backdrop-filter: blur(6px);
@@ -908,30 +909,7 @@ import Orb from "./Orb.astro";
     pointer-events: auto;
   }
 
-  .stage-mode button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--s-2);
-    min-width: var(--tap);
-    min-height: var(--tap);
-    padding: 0 var(--s-3);
-    border: 0;
-    border-radius: var(--r-pill);
-    background: transparent;
-    color: var(--ink-2);
-    font-size: var(--t-sm);
-    font-weight: 600;
-    white-space: nowrap;
-    transition:
-      background-color 0.15s,
-      color 0.15s;
-  }
-
-  .stage-mode button[aria-pressed="true"] {
-    background: var(--primary);
-    color: var(--on-dark);
-  }
+  /* Buttons, hover and the pressed option come from the global .segmented control. */
 
   /* ── Looks of the slime ────────────────────────────────────────────────────
      Little portraits of the two slimes, on «Slime» (the current one) and in its second level.
@@ -1062,8 +1040,8 @@ import Orb from "./Orb.astro";
     background: var(--scrim);
     color: var(--on-dark);
     font-size: var(--t-base);
-    font-weight: 550;
-    line-height: 1.35;
+    font-weight: var(--w-semibold);
+    line-height: var(--lh-snug);
     text-wrap: pretty;
     backdrop-filter: blur(6px);
   }
@@ -1092,6 +1070,7 @@ import Orb from "./Orb.astro";
     opacity: 0.8;
     pointer-events: auto;
     cursor: pointer;
+    transition: var(--btn-motion);
   }
 
   .subtitle-close:hover {
@@ -1127,7 +1106,7 @@ import Orb from "./Orb.astro";
   .subtitle :global(b) {
     display: block;
     font-size: var(--t-xs);
-    font-weight: 700;
+    font-weight: var(--w-bold);
     color: var(--rose-300);
   }
 
@@ -1143,10 +1122,6 @@ import Orb from "./Orb.astro";
     gap: var(--s-2) var(--s-3);
   }
 
-  .stage-controls .btn:not(.btn-talk) {
-    min-height: 3.25rem;
-    padding-inline: var(--s-5);
-  }
 
   .btn-talk span {
     display: inline-flex;
@@ -1442,8 +1417,8 @@ import Orb from "./Orb.astro";
     box-shadow: var(--shadow-float);
     color: var(--ink);
     font-size: var(--t-base);
-    font-weight: 550;
-    line-height: 1.4;
+    font-weight: var(--w-semibold);
+    line-height: var(--lh-snug);
     text-align: center;
     text-wrap: pretty;
     translate: -50% 0;
@@ -1493,7 +1468,6 @@ import Orb from "./Orb.astro";
   }
 
   .play-bar .btn {
-    min-height: var(--play-bar);
     padding-inline: var(--s-5);
     font-size: var(--t-base);
   }
@@ -1501,6 +1475,5 @@ import Orb from "./Orb.astro";
   .play-exit {
     border-color: var(--border-field);
     box-shadow: var(--shadow-float);
-    font-weight: 650;
   }
 </style>
