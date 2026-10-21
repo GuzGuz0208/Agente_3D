@@ -30,6 +30,14 @@ import { ENGINES } from "../voice/engine-factory";
         <option value="cloned">Voz clonada</option>
       </select>
     </label>
+    <label title="Solo OpenAI y la voz clonada; aplica desde la siguiente conversación">
+      <span>Velocidad de habla</span>
+      <select class="select" id="speed-select" data-testid="speed-select">
+        <option value="1">Normal</option>
+        <option value="1.15">Un poco más rápida</option>
+        <option value="1.3">Rápida</option>
+      </select>
+    </label>
   </div>
 
   <div class="setting">
@@ -58,6 +66,7 @@ import { ENGINES } from "../voice/engine-factory";
 </section>
 
 <script>
+  import { setSpeechSpeed, speechSpeed } from "../voice/speech-speed";
   import { analysisWanted, setAnalysisWanted } from "../scripts/analysis";
   import { bind, byId, panel } from "../scripts/dom";
   import * as controller from "../voice/controller";
@@ -78,6 +87,11 @@ import { ENGINES } from "../voice/engine-factory";
 
     engine?.addEventListener("change", () => controller.selectEngine(engine.value as EngineId));
     voice?.addEventListener("change", () => controller.setVoiceMode(voice.value as VoiceMode));
+    const speed = byId<HTMLSelectElement>("speed-select");
+    if (speed) {
+      speed.value = String(speechSpeed());
+      speed.addEventListener("change", () => setSpeechSpeed(Number(speed.value)));
+    }
     analysis?.addEventListener("click", () => setAnalysisWanted(!analysisWanted()));
 
     const closeFix = (): void => {

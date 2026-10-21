@@ -12,6 +12,7 @@
  *
  * Nothing provider-specific leaves this file (R-03).
  */
+import { speechSpeed } from "./speech-speed";
 import type { RealtimeSessionGrant } from "./api";
 import { base64ToPcm, openSocket, parseFrame, pcmToBase64, RealtimeEngineBase, type CancelInfo, type ProviderToolCall } from "./realtime-base";
 import type { ContextEnvelope, StyleDecision } from "./types";
@@ -70,6 +71,9 @@ export class OpenAIRealtimeEngine extends RealtimeEngineBase {
         const msg = parseFrame(ev.data);
         if (!msg) return;
         if (msg.type === "session.created") {
+          // Speaking speed chosen in /admin (1 = provider default, nothing sent).
+          const speed = speechSpeed();
+          if (speed !== 1) this.send({ type: "session.update", session: { type: "realtime", audio: { output: { speed } } } });
           clearTimeout(timer);
           this.baseInstructions = str(obj(msg.session).instructions);
           this.ready = true;

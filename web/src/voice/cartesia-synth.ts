@@ -8,6 +8,7 @@
  * URL and the access token never leave this file (R-03); the token lives in
  * memory only and the team key never reaches the browser (R-28).
  */
+import { speechSpeed } from "./speech-speed";
 import { apiFetch } from "./api";
 
 export interface SynthWord {
@@ -184,6 +185,7 @@ export class CartesiaSynthesizer implements SpeechSynthesizer {
       continue: more,
       output_format: { container: "raw", encoding: "pcm_s16le", sample_rate: 24_000 },
       add_timestamps: grant.config.timestamps !== false,
+      ...(speechSpeed() !== 1 ? { generation_config: { speed: speechSpeed() } } : {}),
     });
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(msg);

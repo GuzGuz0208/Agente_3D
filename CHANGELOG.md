@@ -5,6 +5,11 @@ Este proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+### Added — Velocidad de habla (2026-10-20)
+- `/admin` → «Velocidad de habla» (Normal · Un poco más rápida 1,15× · Rápida 1,3×), guardada en el
+  navegador y aplicada desde la siguiente conversación a OpenAI Realtime (`audio.output.speed`) y a la voz
+  clonada (Cartesia `generation_config.speed`); Gemini no tiene este ajuste. «Normal» no envía nada extra.
+
 ### Changed — Pulido visual para la presentación (rama `feat/presentacion`, 2026-10-18)
 - Tipografía unificada: Bricolage Grotesque para títulos y cifras, Instrument Sans para el resto,
   JetBrains Mono solo para código; escala responsiva de 7 tamaños (mínimo 13 px) y 3 pesos.
