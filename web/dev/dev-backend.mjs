@@ -36,6 +36,9 @@ const OPENAI_MODEL = "gpt-realtime-2.1";
 const GEMINI_MODEL = "gemini-3.8-live";
 const DATASET = "s2ru-bqt6";
 const SODA3_URL = `https://www.datos.gov.co/api/v3/views/${DATASET}/query.json`;
+// SODA2 fallback (D-12): since 2026-11-05 SODA3 answers 403 authentication_required without a token.
+const SODA2_URL = `https://www.datos.gov.co/resource/${DATASET}.json`;
+let useSoda2 = false;
 const SOURCE_URL = `https://www.datos.gov.co/resource/${DATASET}.json`;
 const FRESH_MS = 60_000;
 
@@ -193,12 +196,23 @@ async function soda(soql, pageSize) {
     try {
       let status;
       let text;
-      if (attempt === 0) {
+      if (useSoda2) {
+        const url = `${SODA2_URL}?${new URLSearchParams({ $query: soql })}`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(attempt === 0 ? 3500 : 2000) });
+        status = res.status;
+        text = await res.text();
+      } else if (attempt === 0) {
         const res = await fetch(SODA3_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body, signal: AbortSignal.timeout(3500) });
         status = res.status;
         text = await res.text();
       } else {
         ({ status, text } = await postFresh(SODA3_URL, body, 2000));
+      }
+      if (status === 403 && !useSoda2) {
+        console.warn("[dev-backend] SODA3 pide token: uso el respaldo SODA2 (D-12)");
+        useSoda2 = true;
+        attempt--; // the switch is not a retry
+        continue;
       }
       if (status === 429) throw new SourceError("RATE_LIMITED", "datos.gov.co limitó las consultas");
       if (status !== 200) throw new SourceError("SOURCE_ERROR", "datos.gov.co no aceptó la consulta en este momento");

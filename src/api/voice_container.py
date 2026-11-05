@@ -50,7 +50,7 @@ class VoiceContainer:
 def build_container(s: Settings) -> VoiceContainer:
     from integrations.datasets.socrata_client import SocrataClient
     from integrations.feedback.log_feedback import LogFeedback
-    from integrations.llm.affect_models import GeminiAffectModel, OpenAIAffectModel
+    from integrations.llm.affect_models import GeminiAffectModel, OpenAIAffectModel, OpenAIAudioAffectModel
     from integrations.realtime.cartesia_session import CartesiaSpeechSession
     from integrations.realtime.gemini_session import GeminiLiveSession
     from integrations.realtime.openai_session import OpenAIRealtimeSession
@@ -93,11 +93,17 @@ def build_container(s: Settings) -> VoiceContainer:
     fast = GeminiAffectModel(api_key=s.gemini_api_key, model=s.analyst_fast_model) if s.gemini_api_key else None
     deep = OpenAIAffectModel(api_key=s.openai_api_key, model=s.analyst_deep_model) if s.openai_api_key else None
     chain = [m for m in (fast, deep) if m is not None]
-    analyst = AnalystService(chain, fast, StylePolicy.load(s.style_policy_path), deadline_s=s.analyst_deadline_s,
+    if s.analyst_voice_provider == "openai" and s.openai_api_key:
+        voice = OpenAIAudioAffectModel(api_key=s.openai_api_key, model=s.analyst_voice_model)
+    else:
+        voice = fast  # Gemini audio branch (D-10), or None: text-only analysis
+    analyst = AnalystService(chain, voice, StylePolicy.load(s.style_policy_path), deadline_s=s.analyst_deadline_s,
                              hedge_after_s=s.analyst_hedge_s)
 
     closers: list[Callable[[], Awaitable[None]]] = [dataset.aclose]
     closers += [m.aclose for m in chain]
+    if voice is not None and voice not in chain:
+        closers.append(voice.aclose)
     return VoiceContainer(
         sessions=SessionService(s.session_signing_key, s.session_token_ttl_hours),
         limiter=RateLimiter(s.rate_limit_per_minute),
@@ -114,7 +120,9 @@ def build_container(s: Settings) -> VoiceContainer:
         dataset=dataset,
         info={
             "llm_profiles": {"fast": {"provider": "gemini", "model": s.analyst_fast_model, "configured": bool(fast)},
-                             "deep": {"provider": "openai", "model": s.analyst_deep_model, "configured": bool(deep)}},
+                             "deep": {"provider": "openai", "model": s.analyst_deep_model, "configured": bool(deep)},
+                             "voice": {"provider": "openai" if isinstance(voice, OpenAIAudioAffectModel) else "gemini",
+                                       "model": voice.name if voice else None, "configured": bool(voice)}},
             "dataset": {"id": s.dataset_id, "token": bool(s.datos_gov_app_token)},
             "lexicon": {"built_at": lexicon.built_at, "cutoff_raw": lexicon.cutoff_raw},
         },

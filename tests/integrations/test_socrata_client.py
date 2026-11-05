@@ -123,3 +123,50 @@ async def test_exhausted_deadline_does_not_call():
 
     with pytest.raises(DatasetUnavailable):
         await _client(handler).query("SELECT 1", deadline=Deadline(0))
+
+
+async def test_soda3_without_token_falls_back_to_soda2_and_stays_there():
+    # 2026-11-05: datos.gov.co started answering SODA3 anonymously with 403
+    # authentication_required; SODA2 (GET /resource) still answers (D-12 fallback).
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append((req.method, req.url.path, req.url.params.get("$query")))
+        if req.url.path.startswith("/api/v3/"):
+            return httpx.Response(403, json={"code": "authentication_required"})
+        return httpx.Response(200, json=[{"rows": "41427"}])
+
+    c = _client(handler)
+    first = await c.query("SELECT count(*) AS rows", deadline=Deadline(5))
+    second = await c.query("SELECT 2", deadline=Deadline(5))
+    assert first.rows == [{"rows": "41427"}] and first.engine == "soda2" and second.engine == "soda2"
+    assert seen == [
+        ("POST", "/api/v3/views/s2ru-bqt6/query.json", None),
+        ("GET", "/resource/s2ru-bqt6.json", "SELECT count(*) AS rows"),
+        ("GET", "/resource/s2ru-bqt6.json", "SELECT 2"),  # no more SODA3 round-trips
+    ]
+
+
+async def test_invalid_token_then_soda3_403_ends_on_soda2():
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append((req.method, req.headers.get("X-App-Token")))
+        if req.method == "POST":
+            return httpx.Response(403, json={"code": "permission_denied" if req.headers.get("X-App-Token") else
+                                             "authentication_required"})
+        return httpx.Response(200, json=[{"value": "1"}])
+
+    c = _client(handler, app_token="bad")
+    res = await c.query("SELECT 1", deadline=Deadline(5))
+    assert res.rows == [{"value": "1"}] and res.engine == "soda2" and not c.has_token
+    assert seen == [("POST", "bad"), ("POST", None), ("GET", None)]
+
+
+async def test_valid_token_keeps_soda3():
+    def handler(req: httpx.Request) -> httpx.Response:
+        assert req.method == "POST" and req.headers["X-App-Token"] == "good"
+        return httpx.Response(200, json=[{"value": "1"}])
+
+    res = await _client(handler, app_token="good").query("SELECT 1", deadline=Deadline(5))
+    assert res.engine == "soda3"

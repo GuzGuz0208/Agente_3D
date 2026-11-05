@@ -125,7 +125,16 @@ import { ENGINES } from "../voice/engine-factory";
     });
 
     return bind(["meta", "transcript", "style", "status"], (s) => {
-      if (engine) engine.value = s.engine;
+      if (engine) {
+        // An engine the backend does not offer (e.g. no Gemini key, D-25) stays listed but disabled.
+        for (const opt of engine.options) {
+          const id = opt.value as EngineId;
+          const offered = controller.engineOffered(id);
+          opt.disabled = !offered;
+          opt.textContent = offered ? engineInfo(id).label : `${engineInfo(id).label} (no disponible)`;
+        }
+        engine.value = s.engine;
+      }
       if (voice) {
         const cloned = voice.querySelector<HTMLOptionElement>('option[value="cloned"]');
         const available = engineInfo(s.engine).clonedVoice;

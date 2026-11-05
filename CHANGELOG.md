@@ -5,6 +5,26 @@ Este proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+### Fixed — datos.gov.co sin token y Gemini sin saldo (2026-11-05)
+- **SODA3 exige token desde el 2026-11-05** (anónimo: 403 `authentication_required`), así que la app
+  desplegada sin `DATOS_GOV_APP_TOKEN` se quedaba sin datos. `SocrataClient` implementa el respaldo
+  SODA2 de D-12 (`GET /resource/{id}.json?$query=`): pasa a él al primer 403 sin token, sin gastar un
+  intento de R-25, y la traza dice `soda2`. Con un token válido sigue en SODA3. Igual en
+  `web/dev/dev-backend.mjs`. Sondas en vivo (`KOGNIA_LIVE=1`): 8/8 verdes por SODA2.
+- **Gemini sin saldo (402 `RESOURCE_EXHAUSTED`)** apagaba en silencio el análisis de la voz. Nueva rama
+  acústica `OpenAIAudioAffectModel` (`gpt-audio-mini`, esquema en el prompt y validado con
+  `AffectLabels`; `ANALYST_VOICE_PROVIDER`/`ANALYST_VOICE_MODEL`). Medido: fusión texto+voz en 1,8 s.
+- `test_stale_cache_only_when_the_source_fails` fallaba en Windows (reloj de 16 ms): la caché fresca
+  ahora compara con `<`.
+
+### Changed — Valores por defecto (2026-11-05, D-24, D-25)
+- Motor por defecto **OpenAI** (`VOICE_DEFAULT_ENGINE`, antes `gemini`) con la voz clonada.
+- Velocidad de habla por defecto **«Un poco más rápida» (1,15×)**; lo elegido en /admin sigue ganando.
+- **Voz y análisis de voz encendidos por defecto** (enmienda R-26, D-24): el micrófono se abre al
+  iniciar la conversación, con indicador visible y «Dejar de usar mi voz» (se recuerda en la pestaña).
+- **Sin `GEMINI_API_KEY`:** /admin muestra «Gemini Live (no disponible)» y la recuperación automática
+  renueva la sesión con el mismo motor en vez de saltar a uno que el backend no ofrece (R-25).
+
 ### Added — Velocidad de habla (2026-10-20)
 - `/admin` → «Velocidad de habla» (Normal · Un poco más rápida 1,15× · Rápida 1,3×), guardada en el
   navegador y aplicada desde la siguiente conversación a OpenAI Realtime (`audio.output.speed`) y a la voz

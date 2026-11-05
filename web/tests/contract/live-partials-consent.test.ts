@@ -235,7 +235,7 @@ describe("explicit voice consent (R-26)", () => {
     await other.engine.disconnect();
   });
 
-  it("the store starts without voice analysis; consent is read only from an explicit 'on'", () => {
+  it("the store starts bare; the choice is on unless explicitly turned 'off' (D-24)", () => {
     store.reset();
     expect(store.getState().voiceAnalysis).toBe(false);
     const mem = new Map<string, string>();
@@ -244,15 +244,16 @@ describe("explicit voice consent (R-26)", () => {
       setItem: (k: string, v: string) => void mem.set(k, v),
       removeItem: (k: string) => void mem.delete(k),
     };
+    expect(readConsent(storage)).toBe(true); // nothing stored: on by default
+    writeConsent(storage, false);
+    expect(mem.get(CONSENT_KEY)).toBe("off");
     expect(readConsent(storage)).toBe(false);
     writeConsent(storage, true);
     expect(mem.get(CONSENT_KEY)).toBe("on");
     expect(readConsent(storage)).toBe(true);
-    writeConsent(storage, false);
-    expect(readConsent(storage)).toBe(false);
     const broken = { getItem: () => { throw new Error("blocked"); } };
-    expect(readConsent(broken)).toBe(false);
-    expect(readConsent(null)).toBe(false);
+    expect(readConsent(broken)).toBe(true);
+    expect(readConsent(null)).toBe(true);
   });
 });
 

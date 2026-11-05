@@ -40,11 +40,12 @@ sin CORS). **No hay WebSocket propio, base de datos ni modelo de embeddings**: e
 | `GEMINI_API_KEY`, `OPENAI_API_KEY` | api | Credenciales efímeras de los motores y analista |
 | `CARTESIA_API_KEY` | api | Emite el token de acceso de la voz clonada (`POST /speech/session`, [08](08-contrato-voz-en-vivo.md) §15.3). **Opcional:** sin ella, `GET /health` no anuncia `cloned` y solo se ofrece la voz del motor. Nunca llega al navegador (R-28) |
 | `CARTESIA_VOICE_ID` | api | Identificador de la voz clonada del equipo; el backend lo entrega al navegador junto al token. No es un secreto, pero se configura aquí para no fijarlo en el código. Requerida si hay `CARTESIA_API_KEY` |
-| `DATOS_GOV_APP_TOKEN` | api | Token SODA3 (opcional; si es inválido se descarta, [09](09-datos-en-vivo-datos-gov-co.md) §2) |
+| `DATOS_GOV_APP_TOKEN` | api | Token de datos.gov.co. **Recomendado:** desde el 2026-11-05 SODA3 lo exige; sin él (o si es inválido, se descarta) el cliente usa el respaldo SODA2 anónimo ([09](09-datos-en-vivo-datos-gov-co.md) §2) |
 | `SESSION_SIGNING_KEY` | api | Firma de la sesión anónima (32 bytes aleatorios) |
 | `ALLOWED_ORIGINS` | api | Origen(es) del web para CORS. **Con Vercel Services no hace falta** (web y api comparten dominio); solo con dos proyectos o el contenedor |
 | `LANGSMITH_API_KEY`, `LANGSMITH_TRACING` | api | Trazas y feedback (opcional) |
-| `VOICE_DEFAULT_ENGINE` | api | Motor que la interfaz elige al cargar (`GET /health` → `default_engine`). Por omisión **`gemini`**, para que las pruebas no gasten la cuota de OpenAI. **El día de la demo final: `openai`** (vuelve también la voz clonada por defecto, si `CARTESIA_API_KEY` está). El selector de /admin sigue ofreciendo los dos motores |
+| `VOICE_DEFAULT_ENGINE` | api | Motor que la interfaz elige al cargar (`GET /health` → `default_engine`). Por omisión **`openai`** (D-25), con la voz clonada por defecto si `CARTESIA_API_KEY` está. El selector de /admin sigue ofreciendo los dos motores |
+| `ANALYST_VOICE_PROVIDER`, `ANALYST_VOICE_MODEL` | api | Rama acústica del análisis. Por omisión `openai` / `gpt-audio-mini` (D-25); `gemini` usa `ANALYST_FAST_MODEL` |
 | `REALTIME_NOISE_REDUCTION` | api | Reducción de ruido de entrada de OpenAI. Por omisión `far_field` (micrófono del PC o portátil); `near_field` con diadema o audífonos; vacío la apaga |
 | `GEMINI_ACTIVITY_HANDLING` | api | Por omisión `NO_INTERRUPTION`: Gemini no corta al agente por cualquier sonido y el navegador aplica la regla de 1 s ([08](08-contrato-voz-en-vivo.md) §6). `START_OF_ACTIVITY_INTERRUPTS` devuelve la interrupción al servidor (cualquier voz corta al instante) |
 | `VOICE_REFRESH_TURNS` | api | Renovación de contexto ([08](08-contrato-voz-en-vivo.md) §7.1): cada cuántos turnos el navegador renueva la sesión del motor entre turnos, sembrada con el sobre neutral, para que la voz no derive en conversaciones largas. Por omisión **`6`**; `0` la apaga |
@@ -169,15 +170,15 @@ local el 2026-10-17: web compilada con `PUBLIC_API_URL=/api` detrás de un proxy
 
 | Variable | Obligatoria | Valor |
 |---|---|---|
-| `GEMINI_API_KEY` | Sí | secreto |
+| `GEMINI_API_KEY` | No (desde D-25; sin ella /health no anuncia Gemini y /admin lo muestra «no disponible») | secreto |
 | `SESSION_SIGNING_KEY` | Sí (sin ella la API no arranca) | 32 bytes nuevos en hex (comando abajo) |
-| `VOICE_DEFAULT_ENGINE` | No | `gemini` (día de la demo: `openai`) |
-| `GEMINI_ACTIVITY_HANDLING` | No | `NO_INTERRUPTION` |
+| `VOICE_DEFAULT_ENGINE` | No | **no definir** (por omisión `openai`); si quedó en `gemini`, borrarla |
+| `GEMINI_ACTIVITY_HANDLING` | No (solo con Gemini; sin `GEMINI_API_KEY`, borrarla) | `NO_INTERRUPTION` |
 | `REALTIME_NOISE_REDUCTION` | No | `far_field` (solo OpenAI; `near_field` con audífonos) |
 | `VOICE_REFRESH_TURNS` | No | `6` (renovación de contexto cada 6 turnos; `0` la apaga) |
-| `DATOS_GOV_APP_TOKEN` | No | secreto (sin él, consultas anónimas) |
-| `OPENAI_API_KEY` | Día de la demo | secreto |
-| `CARTESIA_API_KEY`, `CARTESIA_VOICE_ID` | Día de la demo (voz clonada) | secreto / id de la voz |
+| `DATOS_GOV_APP_TOKEN` | Recomendada | secreto (sin él, respaldo SODA2 anónimo) |
+| `OPENAI_API_KEY` | Sí (motor y análisis por defecto, D-25) | secreto |
+| `CARTESIA_API_KEY`, `CARTESIA_VOICE_ID` | Sí, para la voz clonada por defecto | secreto / id de la voz |
 | `ALLOWED_ORIGINS`, `PUBLIC_API_URL`, `API_PATH_PREFIX` | No: **no definir** | mismo dominio; la web se compila con `/api` |
 
 ```powershell
@@ -186,8 +187,8 @@ $b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create
 ```
 
 **Verificar:** `Invoke-RestMethod https://<dominio>/api/health | ConvertTo-Json -Depth 4` →
-`status: ok`, `default_engine: gemini`, `engines.gemini.configured: true`, `source.ok: true`. Luego
-`https://<dominio>/consola/` en Chrome del Android: pregunta escrita, después «Usar mi voz».
+`status: ok`, `default_engine: openai`, `engines.openai.configured: true`, `llm_profiles.voice.provider: openai`,
+`source.ok: true`. Luego `https://<dominio>/consola/` en Chrome del Android: la voz arranca encendida (D-24).
 Un 500 en `/api/health` casi siempre es `SESSION_SIGNING_KEY` ausente o corta (ver *Logs* del proyecto).
 
 **Pasar a OpenAI el día de la demo:** *Settings → Environment Variables* → `VOICE_DEFAULT_ENGINE` =

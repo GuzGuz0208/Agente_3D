@@ -147,9 +147,9 @@ function initialState(): ConsoleState {
   return {
     running: false,
     status: "idle",
-    // Gemini while testing, so the OpenAI quota is kept for the final rehearsal. The backend's
-    // `default_engine` (VOICE_DEFAULT_ENGINE) replaces it before the first session.
-    engine: "gemini",
+    // OpenAI (2026-11-05): the engine with the cloned voice. The backend's `default_engine`
+    // (VOICE_DEFAULT_ENGINE) replaces it before the first session.
+    engine: "openai",
     model: "",
     simulated: true,
     conversation_id: null,
@@ -164,7 +164,8 @@ function initialState(): ConsoleState {
     turns: [],
     notices: [],
     lastError: null,
-    // Off until the person presses «Usar mi voz» (R-26). Audio is never stored.
+    // Bare state: scripts/analysis.ts applies the person's choice (on by default since D-24,
+    // off after «Dejar de usar mi voz»). Audio is never stored.
     voiceAnalysis: false,
     voiceMode: "engine",
     voiceModes: ["engine"],
@@ -248,6 +249,7 @@ const isEngine = (v: unknown): v is EngineId => v === "openai" || v === "gemini"
 function sessionText(p: SessionPayload): string {
   if (p.event === "voice_changed") return `Voz cambiada a ${p.to === "cloned" ? "la voz clonada" : "la del motor"} (${p.reason}).`;
   if (p.event === "expiring") return `La sesión está por vencer: se renovará entre turnos (${p.reason}).`;
+  if (p.event === "switched" && p.from === p.to && isEngine(p.to)) return `Sesión renovada con ${ENGINE_LABEL[p.to]} (${p.reason}). No se repitió ninguna consulta.`;
   if (p.event === "switched") return `Sesión renovada: motor cambiado a ${isEngine(p.to) ? ENGINE_LABEL[p.to] : "otro motor"} (${p.reason}). No se repitió ninguna consulta.`;
   return `Sesión renovada con el mismo motor (${p.reason}).`;
 }

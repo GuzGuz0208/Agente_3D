@@ -1,10 +1,11 @@
 /**
- * Explicit voice consent (docs/10 §6, R-26).
+ * Voice use and voice analysis (docs/10 §6, R-26 as amended by D-24, 2026-11-05).
  *
- * The microphone is not opened and no audio clip is sent to `/analysis/utterance`
- * until the person presses «Usar mi voz». Until then the console is text only and
- * every analysis goes out with `voice_consent: false`. The choice is remembered
- * only for this tab (sessionStorage) and can be withdrawn at any time.
+ * On by default: the conversation opens the microphone (the browser still asks for
+ * permission) and the voice analysis runs from the first turn, with the visible
+ * indicator and «Dejar de usar mi voz». Once the person withdraws it, the console is
+ * text only and every analysis goes out with `voice_consent: false` until they press
+ * «Usar mi voz» again. The choice is remembered only for this tab (sessionStorage).
  *
  * The store starts every conversation with `voiceAnalysis: false` and `reset()`
  * returns to that, so this module re-applies the person's choice whenever the
@@ -15,19 +16,18 @@ import { getState, subscribe } from "../voice/store";
 
 export const CONSENT_KEY = "ips.voice-consent";
 
-/** Reads the remembered consent; anything but an explicit "on" means no consent. */
+/** Reads the remembered choice; on unless the person explicitly turned it "off" (D-24). */
 export function readConsent(storage: Pick<Storage, "getItem"> | null | undefined): boolean {
   try {
-    return storage?.getItem(CONSENT_KEY) === "on";
+    return storage?.getItem(CONSENT_KEY) !== "off";
   } catch {
-    return false;
+    return true;
   }
 }
 
 export function writeConsent(storage: Pick<Storage, "setItem" | "removeItem"> | null | undefined, on: boolean): void {
   try {
-    if (on) storage?.setItem(CONSENT_KEY, "on");
-    else storage?.removeItem(CONSENT_KEY);
+    storage?.setItem(CONSENT_KEY, on ? "on" : "off");
   } catch {
     // Private mode or blocked storage: the choice lasts for this page only.
   }

@@ -8,6 +8,9 @@ its own except the token check. Policy from docs/09 section 2:
 - **one** retry on timeout, 5xx or connection error (R-25);
 - 429 honours ``Retry-After`` only if it fits the deadline;
 - a 403 with a token drops the token and retries once anonymously;
+- a 403 without a token (SODA3 ``authentication_required``, seen since 2026-11-05)
+  switches this client to the SODA2 fallback ``GET /resource/{id}.json?$query=``
+  for the rest of its life (D-12); the trace says ``soda2``;
 - in-memory cache: fresh 60 s; an expired entry is served only if the source
   fails, up to 24 h, labelled ``stale`` (docs/09 section 6).
 """
@@ -34,8 +37,6 @@ def _now_iso() -> str:
 
 
 class SocrataClient:
-    engine = "soda3"
-
     def __init__(
         self,
         *,
@@ -55,6 +56,8 @@ class SocrataClient:
         self._last_ok = 0.0
         self._base_url = base_url.rstrip("/")
         self._path = f"/api/v3/views/{dataset_id}/query.json"
+        self._path_soda2 = f"/resource/{dataset_id}.json"
+        self._soda2 = False  # sticky once SODA3 refuses anonymous access
         self._token = app_token or None
         self._connect_s = connect_timeout_s
         self._read_s = read_timeout_s
@@ -68,6 +71,10 @@ class SocrataClient:
     @property
     def has_token(self) -> bool:
         return self._token is not None
+
+    @property
+    def engine(self) -> str:  # type: ignore[override]
+        return "soda2" if self._soda2 else "soda3"
 
     def _http(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -105,23 +112,27 @@ class SocrataClient:
     async def query(self, soql: str, *, deadline: Deadline, bypass_cache: bool = False) -> QueryResult:
         now = time.monotonic()
         cached = self._cache.get(soql)
-        if cached and not bypass_cache and now - cached[0] <= self._fresh_s:
-            return QueryResult(rows=cached[1], soql=soql, ms=0, cache_status="fresh", fetched_at=cached[2])
+        # `<`, not `<=`: with cache_fresh_s=0 nothing is fresh, even on a coarse clock (Windows).
+        if cached and not bypass_cache and now - cached[0] < self._fresh_s:
+            return QueryResult(rows=cached[1], soql=soql, ms=0, cache_status="fresh", fetched_at=cached[2],
+                               engine=self.engine)
 
         try:
             rows, ms = await self._fetch(soql, deadline)
         except DatasetUnavailable:
             if cached and now - cached[0] <= self._stale_s:
                 log.warning("dataset unavailable, serving stale cache")
-                return QueryResult(rows=cached[1], soql=soql, ms=0, cache_status="stale", fetched_at=cached[2])
+                return QueryResult(rows=cached[1], soql=soql, ms=0, cache_status="stale", fetched_at=cached[2],
+                                   engine=self.engine)
             raise
         fetched_at = _now_iso()
         self._cache[soql] = (time.monotonic(), rows, fetched_at)
-        return QueryResult(rows=rows, soql=soql, ms=ms, cache_status="live", fetched_at=fetched_at)
+        return QueryResult(rows=rows, soql=soql, ms=ms, cache_status="live", fetched_at=fetched_at,
+                           engine=self.engine)
 
     async def _fetch(self, soql: str, deadline: Deadline) -> tuple[list[dict[str, Any]], int]:
         body = {"query": soql, "page": {"pageNumber": 1, "pageSize": self._page_size}}
-        attempts, token_dropped, last_error = 0, False, "unknown"
+        attempts, token_dropped, switched, last_error = 0, False, False, "unknown"
         while attempts < 2:
             remaining = deadline.remaining()
             if remaining <= 0.05:
@@ -137,10 +148,12 @@ class SocrataClient:
             )
             t0 = time.perf_counter()
             try:
-                r = await asyncio.wait_for(
-                    self._http().post(self._path, json=body, headers=headers, timeout=timeout),
-                    timeout=budget,
+                request = (
+                    self._http().get(self._path_soda2, params={"$query": soql}, headers=headers, timeout=timeout)
+                    if self._soda2 else
+                    self._http().post(self._path, json=body, headers=headers, timeout=timeout)
                 )
+                r = await asyncio.wait_for(request, timeout=budget)
             except (TimeoutError, *_RETRYABLE) as exc:
                 last_error = type(exc).__name__
                 continue
@@ -154,6 +167,11 @@ class SocrataClient:
                 log.warning("datos.gov.co rejected the app token; continuing anonymously")
                 self._token, token_dropped = None, True
                 attempts -= 1  # docs/09 section 11: retry once without it
+                continue
+            if r.status_code == 403 and not self._token and not self._soda2 and not switched:
+                log.warning("datos.gov.co SODA3 requires an app token; using the SODA2 fallback (D-12)")
+                self._soda2, switched = True, True
+                attempts -= 1  # the switch is not a retry (R-25 counts failures of one endpoint)
                 continue
             if r.status_code == 429:
                 retry_after = _retry_after(r)

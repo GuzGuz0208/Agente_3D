@@ -35,7 +35,7 @@ conexión durante la demo, por eso se muestra cada consulta (panel «API en vivo
 
 ## 2. Acceso a la API
 
-**Camino principal — SODA3** (verificado: anónimo 200 en 0,57 s; token inválido 403):
+**Camino principal — SODA3** (verificado el 2026-10-09: anónimo 200 en 0,57 s; token inválido 403). **Desde el 2026-11-05 SODA3 exige token:** sin él responde 403 `authentication_required`; con uno inválido, 403 `permission_denied`:
 
 ```http
 POST https://www.datos.gov.co/api/v3/views/s2ru-bqt6/query.json
@@ -46,8 +46,10 @@ X-App-Token: <token del servidor, si existe>
 ```
 
 `page.pageNumber` es 1-indexado. La respuesta es un arreglo JSON de objetos con **todo en
-texto**. **Respaldo — SODA2:** `GET /resource/s2ru-bqt6.json` con `$select/$where/$group/$order/$limit`.
-Una misma consulta lógica se renderiza a ambos formatos.
+texto**. **Respaldo — SODA2 (implementado el 2026-11-05):** `GET /resource/s2ru-bqt6.json?$query=<la misma SoQL>`,
+que sigue respondiendo anónimo. Si SODA3 responde 403 sin token (o tras descartar uno inválido), el cliente
+pasa a SODA2 para el resto de su vida, sin gastar un intento de R-25, y la traza dice `soda2`. Con un
+token válido se queda en SODA3.
 
 | Política del cliente (`httpx.AsyncClient`, `integrations/datasets/socrata_client.py` *(planeado)*) | Valor |
 |---|---|
@@ -56,7 +58,7 @@ Una misma consulta lógica se renderiza a ambos formatos.
 | Reintentos | **1** ante timeout, 5xx o error de conexión (R-25); 429: se respeta `Retry-After` solo si cabe en el plazo, si no `unavailable` |
 | Calentamiento y precarga | La conexión se calienta en `POST /sessions` y `POST /realtime/session` (consulta barata, fuera del camino crítico). Al pedir el brief y al crear la sesión de voz se precargan, **a través de las propias herramientas** (misma SoQL), los agregados más probables: prestadores total y por naturaleza, códigos de sede por naturaleza, camas totales, top 5 departamentos y top 5 municipios por camas. Si se piden en los 60 s siguientes salen `fresh`, nunca `live`. Una sola `httpx.AsyncClient` por proceso con keep-alive; **sin HTTP/2** (exigiría `h2`, dependencia nueva, R-10) |
 | Token | `DATOS_GOV_APP_TOKEN`, leído **solo** en `src/config.py` (R-05). Se valida al arrancar: si responde 403 se descarta y se sigue anónimo; **nunca** se envía un token inválido ni se registra |
-| Anonimato | El acceso anónimo funcionó hoy, pero la documentación exige token o usuario: **no es una garantía**; se usa el token siempre que exista |
+| Anonimato | Funcionó el 2026-10-09 y **dejó de funcionar en SODA3 el 2026-11-05**; SODA2 anónimo sigue respondiendo, pero tampoco es garantía: se usa el token siempre que exista |
 | Codificación | UTF-8 en todo el camino (`Pública`, `BOGOTÁ`) |
 | SDK | `sodapy 2.2.0` (SODA2, síncrono, sin mantenimiento desde 2022-08-31) solo en scripts como `build_lexicon.py`; el camino caliente usa `httpx` (cancelar un `await` no detiene un hilo bloqueado) |
 

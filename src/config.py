@@ -79,9 +79,9 @@ class Settings(BaseSettings):
     # same 1-second rule as with OpenAI and cuts the generation itself (docs/08 section 6).
     # START_OF_ACTIVITY_INTERRUPTS restores the provider's own barge-in; "" leaves the provider default.
     gemini_activity_handling: str = "NO_INTERRUPTION"
-    # Engine the interface selects first (GET /health -> default_engine). "gemini" while testing so
-    # the OpenAI quota is kept for the final rehearsal; VOICE_DEFAULT_ENGINE=openai for the demo.
-    voice_default_engine: str = "gemini"  # gemini | openai
+    # Engine the interface selects first (GET /health -> default_engine). OpenAI since 2026-11-05:
+    # it is the engine with the cloned voice, and the Gemini key ran out of credit (HTTP 402).
+    voice_default_engine: str = "openai"  # openai | gemini
     openai_transcribe_model: str = "gpt-4o-mini-transcribe"
     gemini_live_model: str = "gemini-3.8-live"
     gemini_live_voice: str = "Kore"
@@ -116,6 +116,10 @@ class Settings(BaseSettings):
     # OpenAI audio models reject json_schema, so the acoustic branch is Gemini only.
     analyst_fast_model: str = "gemini-3.5-flash-lite"
     analyst_deep_model: str = "gpt-5.4-mini"
+    # Acoustic branch (how the voice sounds). "openai" since 2026-11-05 (Gemini without credit):
+    # gpt-audio-mini, schema in the prompt, 1.4 s on a 5 s clip. "gemini" uses analyst_fast_model.
+    analyst_voice_provider: str = "openai"  # openai | gemini
+    analyst_voice_model: str = "gpt-audio-mini"
     analyst_deadline_s: float = 3.0
     # A text estimate still pending after this many seconds gets the next profile beside it
     # (fast p95 ~1.6-1.7 s on 2026-10-16; the deep profile then has ~1.3 s).

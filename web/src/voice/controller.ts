@@ -230,9 +230,24 @@ function afterEvent(ev: AnyEngineEvent): void {
       return;
     }
     if (ev.payload.retryable && (code === "ENGINE_DROPPED" || code === "ENGINE_CONNECT_FAILED" || code === "ENGINE_QUOTA")) {
-      void switchEngine(otherEngine(store.getState().engine), code, true);
+      void switchEngine(fallbackEngine(store.getState().engine), code, true);
     }
   }
+}
+
+/**
+ * Engines the backend offers (`GET /health` → `engines`). Before /health answers, or without a
+ * backend, every engine counts as offered. Since 2026-11-05 the Gemini key may be absent (D-25).
+ */
+export function engineOffered(id: EngineId): boolean {
+  const models = store.getState().engineModels;
+  return Object.keys(models).length === 0 || id in models;
+}
+
+/** Where an automatic recovery goes: the other engine if it is offered, else a fresh session of the same one (R-25). */
+export function fallbackEngine(current: EngineId): EngineId {
+  const other = otherEngine(current);
+  return engineOffered(other) ? other : current;
 }
 
 // ── Figure check (docs/10 §5) ────────────────────────────────────────────────
@@ -615,6 +630,7 @@ export function restart(): void {
 let engineChosen = false;
 
 export function selectEngine(id: EngineId): void {
+  if (!engineOffered(id)) return;
   engineChosen = true;
   const s = store.getState();
   if (id === s.engine) return;

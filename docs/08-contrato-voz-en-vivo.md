@@ -103,8 +103,8 @@ turno, transcripción de entrada y **modalidad de salida** (audio, o solo texto 
 backend responde `engine` y la interfaz lo muestra (§15.6). Los adaptadores solo traducen.
 `GET /health` añade `voice_modes` (`["engine"]` o `["engine","cloned"]`, según haya clave de síntesis
 configurada) para que la interfaz sepa si ofrecer el selector de voz, y `default_engine` (aditivo):
-el motor que la interfaz elige al cargar (`VOICE_DEFAULT_ENGINE`, por omisión `gemini` mientras se
-prueba; `openai` para la demo, [11](11-despliegue.md) §2). Se aplica antes de la primera sesión y
+el motor que la interfaz elige al cargar (`VOICE_DEFAULT_ENGINE`, por omisión `openai` desde el
+2026-11-05, D-25; [11](11-despliegue.md) §2). Se aplica antes de la primera sesión y
 nunca si la persona ya eligió motor en /admin. Con Gemini la voz es la del motor, sin aviso.
 
 | | OpenAI Realtime | Gemini Live |

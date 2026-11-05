@@ -3,6 +3,10 @@
 - ``fast`` = Gemini ``gemini-3.5-flash-lite``: text p50 1.1 s, audio p50 1.4-2.2 s, schema 3/3.
 - ``deep`` = OpenAI ``gpt-5.4-mini``: text p50 1.3 s. OpenAI audio models reject
   ``json_schema`` (G3: HTTP 400), so it serves only as the text fallback.
+- ``voice`` = OpenAI ``gpt-audio-mini`` (2026-11-05, Gemini without credit: HTTP 402). It still
+  rejects ``json_schema``, so the schema goes in the prompt and the answer is validated with
+  ``AffectLabels`` like every other profile: anything else is an error, never a guess. 1.4 s on a
+  5 s clip, same range as the Gemini audio branch.
 
 One persistent client per adapter: a new TLS connection per call cost +1-1.5 s.
 Provider payloads, URLs and keys stay here (R-03).
@@ -165,6 +169,60 @@ class OpenAIAffectModel:
         if r.status_code != 200:
             raise AffectModelError(f"HTTP {r.status_code}")
         return _parse(r.json()["choices"][0]["message"]["content"])
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
+
+
+def _strip_fences(raw: str) -> str:
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1] if "\n" in raw else ""
+        raw = raw.rsplit("```", 1)[0]
+    return raw.strip()
+
+
+class OpenAIAudioAffectModel:
+    """Acoustic branch over OpenAI chat completions with ``input_audio`` (audio only, no text)."""
+
+    supports_audio = True
+
+    def __init__(self, *, api_key: str, model: str, transport: httpx.AsyncBaseTransport | None = None) -> None:
+        self.name = model
+        self._key = api_key
+        self._client = httpx.AsyncClient(base_url="https://api.openai.com", transport=transport,
+                                         headers={"Authorization": f"Bearer {api_key}"})
+
+    @property
+    def configured(self) -> bool:
+        return bool(self._key)
+
+    async def estimate(self, text: str, audio_wav: bytes | None, *, timeout_s: float,
+                       prosody: str | None = None, signals: str | None = None) -> AffectLabels:
+        if not audio_wav:
+            raise AffectModelError("this profile only analyses audio")
+        hint = "Evalúa solo cómo suena la voz." + (f" Medidas locales: {prosody}." if prosody else "")
+        body = {
+            "model": self.name,
+            "modalities": ["text"],
+            "messages": [
+                {"role": "system", "content": VOICE_SYSTEM + " Esquema JSON: " + json.dumps(SCHEMA, ensure_ascii=False)},
+                {"role": "user", "content": [
+                    {"type": "input_audio", "input_audio": {"data": base64.b64encode(audio_wav).decode(), "format": "wav"}},
+                    {"type": "text", "text": hint}]},
+            ],
+        }
+        try:
+            r = await self._client.post("/v1/chat/completions", json=body, timeout=timeout_s)
+        except httpx.HTTPError as exc:
+            raise AffectModelError(type(exc).__name__) from exc
+        if r.status_code != 200:
+            raise AffectModelError(f"HTTP {r.status_code}")
+        try:
+            content = r.json()["choices"][0]["message"]["content"] or ""
+        except (KeyError, IndexError, TypeError) as exc:
+            raise AffectModelError("no choice") from exc
+        return _parse(_strip_fences(content))
 
     async def aclose(self) -> None:
         await self._client.aclose()

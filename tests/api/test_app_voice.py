@@ -176,17 +176,19 @@ def test_health_announces_the_default_engine():
             assert tc.get("/health").json()["default_engine"] == expected
 
 
-def test_settings_defaults_for_pc_microphone_and_gemini_tests(monkeypatch):
+def test_settings_defaults_for_pc_microphone_and_openai(monkeypatch):
     from config import Settings
 
-    for name in ("VOICE_DEFAULT_ENGINE", "REALTIME_NOISE_REDUCTION", "GEMINI_ACTIVITY_HANDLING"):
+    for name in ("VOICE_DEFAULT_ENGINE", "REALTIME_NOISE_REDUCTION", "GEMINI_ACTIVITY_HANDLING",
+                 "VOICE_DEFAULT_MODE", "ANALYST_VOICE_PROVIDER"):
         monkeypatch.delenv(name, raising=False)
     s = Settings(_env_file=None)
-    assert s.voice_default_engine == "gemini"
+    assert s.voice_default_engine == "openai" and s.voice_default_mode == "cloned"  # 2026-11-05
+    assert s.analyst_voice_provider == "openai" and s.analyst_voice_model == "gpt-audio-mini"
     assert s.realtime_noise_reduction == "far_field"
     assert s.gemini_activity_handling == "NO_INTERRUPTION"
-    monkeypatch.setenv("VOICE_DEFAULT_ENGINE", "openai")
-    assert Settings(_env_file=None).voice_default_engine == "openai"
+    monkeypatch.setenv("VOICE_DEFAULT_ENGINE", "gemini")
+    assert Settings(_env_file=None).voice_default_engine == "gemini"
 
 
 def test_analysis_drops_audio_without_consent(client):

@@ -243,7 +243,7 @@ class IpsToolService:
         soql.assert_safe(sql)
         _step("soql · consulta armada con columnas de lista cerrada (services/ips/soql.py)")
         res = await self._dataset.query(sql, deadline=deadline, bypass_cache=bypass)
-        _step(f"SocrataClient.query → datos.gov.co SODA3 · {res.cache_status} · {res.ms} ms · "
+        _step(f"SocrataClient.query → datos.gov.co {res.engine.upper()} · {res.cache_status} · {res.ms} ms · "
               f"{len(res.rows)} filas (integrations/datasets/socrata_client.py)")
         return res
 

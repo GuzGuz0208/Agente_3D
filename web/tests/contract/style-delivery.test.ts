@@ -131,7 +131,11 @@ describe("nota de estilo en OpenAI", () => {
     const ws = FakeSocket.last!;
     engine.sendText("¿Cuántas IPS hay en Cali?");
     engine.applyStyle(DIRECTO);
-    const updates = ws.sent.filter((m) => m.type === "session.update");
+    // The speaking speed goes in its own session.update on connect (1.15 by default, 2026-11-05).
+    const speed = ws.sent.filter((m) => m.type === "session.update" && JSON.stringify(m).includes('"speed"'));
+    expect(speed).toHaveLength(1);
+    expect((speed[0]!.session as { audio: { output: { speed: number } } }).audio.output.speed).toBe(1.15);
+    const updates = ws.sent.filter((m) => m.type === "session.update" && "instructions" in (m.session as object));
     expect(updates).toHaveLength(1);
     expect((updates[0]!.session as { instructions: string }).instructions).toMatch(/^BASE\nNota de estilo vigente: Responde en una o dos frases\./);
     await engine.disconnect();
