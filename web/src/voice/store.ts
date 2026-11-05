@@ -290,7 +290,11 @@ const handlers: { [K in keyof EngineEvents]: (ev: Extract<AnyEngineEvent, { type
         generation_id: ev.generation_id,
         kind: p.role === "agent" ? (state.speakingKind ?? undefined) : undefined,
       };
-      state.utterances.push(u);
+      // The user transcript can arrive after the answer it caused (the transcriber is slower than the
+      // 1 s transcript gate): it goes before the agent's utterances of its own turn, not below them.
+      const answer = p.role === "user" && ev.turn_id ? state.utterances.findIndex((x) => x.role === "agent" && x.turn_id === ev.turn_id) : -1;
+      if (answer >= 0) state.utterances.splice(answer, 0, u);
+      else state.utterances.push(u);
     } else {
       // Interrupted: anything that still arrives for that generation is dropped (docs/08 §6.5).
       if (u.role === "agent" && u.delivered_text !== undefined) return [];

@@ -98,6 +98,23 @@ describe("sesión", () => {
 });
 
 describe("transcripción", () => {
+  it("la frase del usuario va antes de la respuesta de su turno aunque su transcripción llegue tarde", () => {
+    // Producción 2026-11-05: gpt-4o-mini-transcribe tardó más que la espera de 1 s y «Ya le reviso»
+    // quedaba encima de la pregunta que lo provocó.
+    store.dispatch(ev("transcript", agent("Hola, soy un asistente.", true, "a0"), { turn_id: "turn-0" }));
+    store.dispatch(ev("transcript", agent("Ya le reviso.", true, "a1"), { turn_id: "turn-1" }));
+    store.dispatch(ev("transcript", agent("Manizales tiene 136 prestadores.", true, "a2"), { turn_id: "turn-1" }));
+    store.dispatch(ev("transcript", user("¿Me das los datos de Manizales?", false, "u1"), { turn_id: "turn-1" }));
+    store.dispatch(ev("transcript", user("¿Me das los datos de Manizales?", true, "u1"), { turn_id: "turn-1" }));
+    expect(store.getState().utterances.map((u) => u.id)).toEqual(["a0", "u1", "a1", "a2"]);
+  });
+
+  it("sin respuesta todavía, la frase del usuario va al final", () => {
+    store.dispatch(ev("transcript", agent("Hola.", true, "a0"), { turn_id: "turn-0" }));
+    store.dispatch(ev("transcript", user("¿Cuántas IPS hay?", true, "u1"), { turn_id: "turn-1" }));
+    expect(store.getState().utterances.map((u) => u.id)).toEqual(["a0", "u1"]);
+  });
+
   it("parcial → final se funden en un solo enunciado por utterance_id", () => {
     store.dispatch(ev("transcript", user("¿Cuántas", false)));
     store.dispatch(ev("transcript", user("¿Cuántas camas", false)));

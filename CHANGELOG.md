@@ -14,6 +14,9 @@ Este proyecto usa [versionado semántico](https://semver.org/lang/es/).
 - **Gemini sin saldo (402 `RESOURCE_EXHAUSTED`)** apagaba en silencio el análisis de la voz. Nueva rama
   acústica `OpenAIAudioAffectModel` (`gpt-audio-mini`, esquema en el prompt y validado con
   `AffectLabels`; `ANALYST_VOICE_PROVIDER`/`ANALYST_VOICE_MODEL`). Medido: fusión texto+voz en 1,8 s.
+- **Orden del chat:** cuando la transcripción del usuario tardaba más que la espera de 1 s, su frase
+  aparecía debajo de la respuesta que provocó («Ya le reviso» antes de la pregunta). Ahora se inserta
+  antes de las respuestas del agente de su mismo turno (`store.ts`).
 - `test_stale_cache_only_when_the_source_fails` fallaba en Windows (reloj de 16 ms): la caché fresca
   ahora compara con `<`.
 
