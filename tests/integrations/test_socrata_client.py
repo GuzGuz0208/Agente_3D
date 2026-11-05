@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+
 import httpx
 import pytest
 
@@ -170,3 +172,33 @@ async def test_valid_token_keeps_soda3():
 
     res = await _client(handler, app_token="good").query("SELECT 1", deadline=Deadline(5))
     assert res.engine == "soda3"
+
+
+async def test_api_key_goes_as_basic_auth_and_keeps_soda3():
+    # datos.gov.co "API Key" (Key ID + Key Secret) authenticates SODA3 with HTTP Basic (2026-11-05).
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append((req.method, req.headers.get("Authorization"), req.headers.get("X-App-Token")))
+        return httpx.Response(200, json=[{"value": "1"}])
+
+    c = _client(handler, api_key_id="keyid", api_key_secret="secret")
+    res = await c.query("SELECT 1", deadline=Deadline(5))
+    assert res.engine == "soda3" and c.has_api_key
+    method, auth, token = seen[0]
+    assert method == "POST" and auth == "Basic " + base64.b64encode(b"keyid:secret").decode() and token is None
+
+
+async def test_rejected_api_key_is_dropped_then_soda2():
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append((req.method, bool(req.headers.get("Authorization"))))
+        if req.method == "POST":
+            return httpx.Response(401 if req.headers.get("Authorization") else 403, json={})
+        return httpx.Response(200, json=[{"value": "1"}])
+
+    c = _client(handler, api_key_id="keyid", api_key_secret="bad")
+    res = await c.query("SELECT 1", deadline=Deadline(5))
+    assert res.engine == "soda2" and not c.has_api_key
+    assert seen == [("POST", True), ("POST", False), ("GET", False)]

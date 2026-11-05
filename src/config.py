@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # datos.gov.co application token (optional). Validated at startup: a 403
     # drops it and the client continues anonymously (docs/09 section 2).
     datos_gov_app_token: str = ""
+    # Or an API Key (Key ID + Key Secret, HTTP Basic). Both values are needed; same drop-on-reject policy.
+    datos_gov_api_key_id: str = ""
+    datos_gov_api_key_secret: str = ""
     # HMAC key for the anonymous session token (R-28). 32 random bytes.
     session_signing_key: str = ""
     session_token_ttl_hours: int = 2

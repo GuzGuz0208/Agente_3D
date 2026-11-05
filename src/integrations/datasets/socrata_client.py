@@ -8,6 +8,8 @@ its own except the token check. Policy from docs/09 section 2:
 - **one** retry on timeout, 5xx or connection error (R-25);
 - 429 honours ``Retry-After`` only if it fits the deadline;
 - a 403 with a token drops the token and retries once anonymously;
+- an API Key (Key ID + Key Secret) goes as HTTP Basic auth; a 401/403 with it drops it
+  the same way (datos.gov.co issues API Keys and App Tokens; SODA3 accepts both);
 - a 403 without a token (SODA3 ``authentication_required``, seen since 2026-11-05)
   switches this client to the SODA2 fallback ``GET /resource/{id}.json?$query=``
   for the rest of its life (D-12); the trace says ``soda2``;
@@ -43,6 +45,8 @@ class SocrataClient:
         base_url: str,
         dataset_id: str,
         app_token: str = "",
+        api_key_id: str = "",
+        api_key_secret: str = "",
         connect_timeout_s: float = 4.0,
         read_timeout_s: float = 4.0,
         cache_fresh_s: float = 60.0,
@@ -59,6 +63,7 @@ class SocrataClient:
         self._path_soda2 = f"/resource/{dataset_id}.json"
         self._soda2 = False  # sticky once SODA3 refuses anonymous access
         self._token = app_token or None
+        self._auth = (api_key_id, api_key_secret) if api_key_id and api_key_secret else None
         self._connect_s = connect_timeout_s
         self._read_s = read_timeout_s
         self._fresh_s = cache_fresh_s
@@ -71,6 +76,10 @@ class SocrataClient:
     @property
     def has_token(self) -> bool:
         return self._token is not None
+
+    @property
+    def has_api_key(self) -> bool:
+        return self._auth is not None
 
     @property
     def engine(self) -> str:  # type: ignore[override]
@@ -132,7 +141,7 @@ class SocrataClient:
 
     async def _fetch(self, soql: str, deadline: Deadline) -> tuple[list[dict[str, Any]], int]:
         body = {"query": soql, "page": {"pageNumber": 1, "pageSize": self._page_size}}
-        attempts, token_dropped, switched, last_error = 0, False, False, "unknown"
+        attempts, token_dropped, auth_dropped, switched, last_error = 0, False, False, False, "unknown"
         while attempts < 2:
             remaining = deadline.remaining()
             if remaining <= 0.05:
@@ -140,6 +149,7 @@ class SocrataClient:
             budget = min(self._budgets[min(attempts, len(self._budgets) - 1)], remaining)
             attempts += 1
             headers = {"X-App-Token": self._token} if self._token else {}
+            auth = httpx.BasicAuth(*self._auth) if self._auth else None
             timeout = httpx.Timeout(
                 connect=min(self._connect_s, budget),
                 read=min(self._read_s, budget),
@@ -149,9 +159,10 @@ class SocrataClient:
             t0 = time.perf_counter()
             try:
                 request = (
-                    self._http().get(self._path_soda2, params={"$query": soql}, headers=headers, timeout=timeout)
+                    self._http().get(self._path_soda2, params={"$query": soql}, headers=headers, auth=auth,
+                                     timeout=timeout)
                     if self._soda2 else
-                    self._http().post(self._path, json=body, headers=headers, timeout=timeout)
+                    self._http().post(self._path, json=body, headers=headers, auth=auth, timeout=timeout)
                 )
                 r = await asyncio.wait_for(request, timeout=budget)
             except (TimeoutError, *_RETRYABLE) as exc:
@@ -163,12 +174,17 @@ class SocrataClient:
                 data = r.json()
                 self._last_ok = time.monotonic()
                 return (data if isinstance(data, list) else []), ms
+            if r.status_code in (401, 403) and self._auth and not auth_dropped:
+                log.warning("datos.gov.co rejected the API key (HTTP %s); continuing without it", r.status_code)
+                self._auth, auth_dropped = None, True
+                attempts -= 1
+                continue
             if r.status_code == 403 and self._token and not token_dropped:
                 log.warning("datos.gov.co rejected the app token; continuing anonymously")
                 self._token, token_dropped = None, True
                 attempts -= 1  # docs/09 section 11: retry once without it
                 continue
-            if r.status_code == 403 and not self._token and not self._soda2 and not switched:
+            if r.status_code == 403 and not self._token and not self._auth and not self._soda2 and not switched:
                 log.warning("datos.gov.co SODA3 requires an app token; using the SODA2 fallback (D-12)")
                 self._soda2, switched = True, True
                 attempts -= 1  # the switch is not a retry (R-25 counts failures of one endpoint)

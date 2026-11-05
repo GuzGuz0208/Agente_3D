@@ -49,7 +49,10 @@ X-App-Token: <token del servidor, si existe>
 texto**. **Respaldo — SODA2 (implementado el 2026-11-05):** `GET /resource/s2ru-bqt6.json?$query=<la misma SoQL>`,
 que sigue respondiendo anónimo. Si SODA3 responde 403 sin token (o tras descartar uno inválido), el cliente
 pasa a SODA2 para el resto de su vida, sin gastar un intento de R-25, y la traza dice `soda2`. Con un
-token válido se queda en SODA3.
+token válido se queda en SODA3. **Credenciales aceptadas:** *App Token* (`X-App-Token`,
+`DATOS_GOV_APP_TOKEN`) o *API Key* (Key ID + Key Secret por HTTP Basic, `DATOS_GOV_API_KEY_ID` y
+`DATOS_GOV_API_KEY_SECRET`); un Key ID enviado como token responde 403 `Invalid app_token`. Una
+credencial rechazada (401/403) se descarta como el token.
 
 | Política del cliente (`httpx.AsyncClient`, `integrations/datasets/socrata_client.py` *(planeado)*) | Valor |
 |---|---|

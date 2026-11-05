@@ -45,6 +45,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 async def live_tools():
     s = get_settings()
     client = SocrataClient(base_url=s.dataset_base_url, dataset_id=s.dataset_id, app_token=s.datos_gov_app_token,
+                           api_key_id=s.datos_gov_api_key_id, api_key_secret=s.datos_gov_api_key_secret,
                            connect_timeout_s=s.dataset_connect_timeout_s, read_timeout_s=s.dataset_read_timeout_s)
     svc = IpsToolService(client, Lexicon.load(s.lexicon_path), dataset_id=s.dataset_id,
                          source_url=f"{s.dataset_base_url}/resource/{s.dataset_id}.json",

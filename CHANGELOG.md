@@ -22,6 +22,8 @@ Este proyecto usa [versionado semántico](https://semver.org/lang/es/).
 - Velocidad de habla por defecto **«Un poco más rápida» (1,15×)**; lo elegido en /admin sigue ganando.
 - **Voz y análisis de voz encendidos por defecto** (enmienda R-26, D-24): el micrófono se abre al
   iniciar la conversación, con indicador visible y «Dejar de usar mi voz» (se recuerda en la pestaña).
+- **API Key de datos.gov.co:** además del App Token, `SocrataClient` acepta Key ID + Key Secret
+  (`DATOS_GOV_API_KEY_ID`/`_SECRET`) por HTTP Basic; si se rechaza (401/403) se descarta y sigue por SODA2.
 - **Sin `GEMINI_API_KEY`:** /admin muestra «Gemini Live (no disponible)» y la recuperación automática
   renueva la sesión con el mismo motor en vez de saltar a uno que el backend no ofrece (R-25).
 

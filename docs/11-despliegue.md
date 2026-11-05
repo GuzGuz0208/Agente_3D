@@ -176,7 +176,7 @@ local el 2026-10-17: web compilada con `PUBLIC_API_URL=/api` detrás de un proxy
 | `GEMINI_ACTIVITY_HANDLING` | No (solo con Gemini; sin `GEMINI_API_KEY`, borrarla) | `NO_INTERRUPTION` |
 | `REALTIME_NOISE_REDUCTION` | No | `far_field` (solo OpenAI; `near_field` con audífonos) |
 | `VOICE_REFRESH_TURNS` | No | `6` (renovación de contexto cada 6 turnos; `0` la apaga) |
-| `DATOS_GOV_APP_TOKEN` | Recomendada | secreto (sin él, respaldo SODA2 anónimo) |
+| `DATOS_GOV_APP_TOKEN` **o** `DATOS_GOV_API_KEY_ID` + `DATOS_GOV_API_KEY_SECRET` | Recomendada | secreto (App Token, o API Key por HTTP Basic; sin ninguno, respaldo SODA2 anónimo) |
 | `OPENAI_API_KEY` | Sí (motor y análisis por defecto, D-25) | secreto |
 | `CARTESIA_API_KEY`, `CARTESIA_VOICE_ID` | Sí, para la voz clonada por defecto | secreto / id de la voz |
 | `ALLOWED_ORIGINS`, `PUBLIC_API_URL`, `API_PATH_PREFIX` | No: **no definir** | mismo dominio; la web se compila con `/api` |

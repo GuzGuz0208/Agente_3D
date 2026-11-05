@@ -58,6 +58,7 @@ def build_container(s: Settings) -> VoiceContainer:
     source_url = f"{s.dataset_base_url}/resource/{s.dataset_id}.json"
     dataset = SocrataClient(
         base_url=s.dataset_base_url, dataset_id=s.dataset_id, app_token=s.datos_gov_app_token,
+        api_key_id=s.datos_gov_api_key_id, api_key_secret=s.datos_gov_api_key_secret,
         connect_timeout_s=s.dataset_connect_timeout_s, read_timeout_s=s.dataset_read_timeout_s,
         cache_fresh_s=s.dataset_cache_fresh_s, cache_stale_s=s.dataset_cache_stale_s,
     )
@@ -123,7 +124,8 @@ def build_container(s: Settings) -> VoiceContainer:
                              "deep": {"provider": "openai", "model": s.analyst_deep_model, "configured": bool(deep)},
                              "voice": {"provider": "openai" if isinstance(voice, OpenAIAudioAffectModel) else "gemini",
                                        "model": voice.name if voice else None, "configured": bool(voice)}},
-            "dataset": {"id": s.dataset_id, "token": bool(s.datos_gov_app_token)},
+            "dataset": {"id": s.dataset_id, "token": bool(s.datos_gov_app_token),
+                        "api_key": bool(s.datos_gov_api_key_id and s.datos_gov_api_key_secret)},
             "lexicon": {"built_at": lexicon.built_at, "cutoff_raw": lexicon.cutoff_raw},
         },
         closers=closers,
